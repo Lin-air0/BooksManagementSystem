@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>图书借阅管理系统 - 首页</title>
+  <!-- 引入Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 引入Font Awesome图标 -->
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <!-- 引入Chart.js用于图表展示 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+  
+  <!-- 配置Tailwind自定义颜色和字体 -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#2563eb',
+            secondary: '#f3f4f6',
+            success: '#10b981',
+            danger: '#ef4444',
+            primaryLight: '#60a5fa',
+            textPrimary: '#374151',
+            textSecondary: '#9ca3af',
+            borderLight: '#e5e7eb',
+            borderMedium: '#d1d5db',
+            dangerLight: '#fef2f2'
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+        },
+      }
+    }
+  </script>
+  
+  <!-- 自定义工具类 -->
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .card-shadow {
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+      }
+      .nav-active {
+        @apply bg-primary text-white;
+      }
+    }
+  </style>
+</head>
+
+<body class="bg-gray-50 font-sans text-textPrimary">
+  <div class="flex h-screen overflow-hidden">
+    <!-- 左侧侧边栏 -->
+    <aside class="w-50 bg-secondary border-r border-borderLight h-full flex-shrink-0">
+      <div class="py-6 px-4">
+        <!-- 系统名称在侧边栏顶部（小型设备显示） -->
+        <div class="lg:hidden text-primary text-xl font-semibold mb-8">图书借阅管理系统</div>
+        
+        <!-- 导航菜单 -->
+        <nav class="space-y-1">
+          <a href="#" class="nav-active flex items-center px-4 py-3 rounded-md text-sm font-medium">
+            <i class="fa fa-tachometer w-5 h-5 mr-3"></i>
+            首页
+          </a>
+          <a href="#" class="flex items-center px-4 py-3 rounded-md text-sm font-medium text-textPrimary hover:bg-gray-200 transition-colors">
+            <i class="fa fa-book w-5 h-5 mr-3"></i>
+            图书管理
+          </a>
+          <a href="#" class="flex items-center px-4 py-3 rounded-md text-sm font-medium text-textPrimary hover:bg-gray-200 transition-colors">
+            <i class="fa fa-users w-5 h-5 mr-3"></i>
+            读者管理
+          </a>
+          <a href="#" class="flex items-center px-4 py-3 rounded-md text-sm font-medium text-textPrimary hover:bg-gray-200 transition-colors">
+            <i class="fa fa-exchange w-5 h-5 mr-3"></i>
+            借阅记录
+          </a>
+          <a href="#" class="flex items-center px-4 py-3 rounded-md text-sm font-medium text-textPrimary hover:bg-gray-200 transition-colors">
+            <i class="fa fa-bar-chart w-5 h-5 mr-3"></i>
+            统计分析
+          </a>
+        </nav>
+      </div>
+    </aside>
+
+    <!-- 主内容区 -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <!-- 顶部导航栏 -->
+      <header class="h-15 bg-white border-b border-borderLight flex items-center justify-between px-6">
+        <div class="text-primary text-xl font-semibold hidden lg:block">图书借阅管理系统</div>
+        
+        <!-- 用户信息 -->
+        <div class="flex items-center space-x-3">
+          <span class="text-sm">管理员</span>
+          <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+            <i class="fa fa-user"></i>
+          </div>
+        </div>
+      </header>
+
+      <!-- 页面内容 -->
+      <main class="flex-1 overflow-y-auto bg-gray-50 p-6">
+        <!-- 页面标题 -->
+        <h1 class="text-xl font-semibold mb-6">仪表盘</h1>
+        
+        <!-- 统计卡片区域 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+          <!-- 总图书数 -->
+          <div class="bg-white rounded-lg border border-borderLight p-5 card-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-textSecondary text-sm">总图书数</p>
+                <p class="text-2xl font-semibold mt-1">1,286</p>
+              </div>
+              <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                <i class="fa fa-book"></i>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 在借数 -->
+          <div class="bg-white rounded-lg border border-borderLight p-5 card-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-textSecondary text-sm">在借数</p>
+                <p class="text-2xl font-semibold mt-1">342</p>
+              </div>
+              <div class="w-10 h-10 rounded-full bg-primaryLight/10 flex items-center justify-center text-primaryLight">
+                <i class="fa fa-arrow-circle-right"></i>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 逾期数 -->
+          <div class="bg-white rounded-lg border border-borderLight p-5 card-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-textSecondary text-sm">逾期数</p>
+                <p class="text-2xl font-semibold mt-1 text-danger">28</p>
+              </div>
+              <div class="w-10 h-10 rounded-full bg-danger/10 flex items-center justify-center text-danger">
+                <i class="fa fa-exclamation-triangle"></i>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 可借数 -->
+          <div class="bg-white rounded-lg border border-borderLight p-5 card-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-textSecondary text-sm">可借数</p>
+                <p class="text-2xl font-semibold mt-1 text-success">944</p>
+              </div>
+              <div class="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center text-success">
+                <i class="fa fa-check-circle"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 图表预览区域 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <!-- 借阅趋势图 -->
+          <div class="bg-white rounded-lg border border-borderLight p-5 card-shadow h-[400px]">
+            <h2 class="text-lg font-semibold mb-4">借阅趋势图</h2>
+            <div class="h-[calc(100%-30px)]">
+              <canvas id="borrowingTrend"></canvas>
+            </div>
+          </div>
+          
+          <!-- 热门图书排行 -->
+          <div class="bg-white rounded-lg border border-borderLight p-5 card-shadow h-[400px]">
+            <h2 class="text-lg font-semibold mb-4">热门图书排行</h2>
+            <div class="h-[calc(100%-30px)]">
+              <canvas id="popularBooks"></canvas>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 快速操作区域 -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <button class="bg-primary text-white py-2 px-4 rounded-md font-medium hover:bg-primary/90 transition-colors">
+            <i class="fa fa-plus mr-2"></i>添加图书
+          </button>
+          <button class="bg-secondary text-textPrimary py-2 px-4 rounded-md font-medium hover:bg-gray-200 transition-colors">
+            <i class="fa fa-user-plus mr-2"></i>读者注册
+          </button>
+          <button class="bg-secondary text-textPrimary py-2 px-4 rounded-md font-medium hover:bg-gray-200 transition-colors">
+            <i class="fa fa-search mr-2"></i>借阅记录查询
+          </button>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // 初始化借阅趋势图
+    const borrowingTrendCtx = document.getElementById('borrowingTrend').getContext('2d');
+    new Chart(borrowingTrendCtx, {
+      type: 'line',
+      data: {
+        labels: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月'],
+        datasets: [{
+          label: '借阅数量',
+          data: [120, 190, 150, 230, 290, 320, 380, 350, 420],
+          borderColor: '#2563eb',
+          backgroundColor: 'rgba(37, 99, 235, 0.1)',
+          borderWidth: 2,
+          tension: 0.3,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            beginAtZero: true,
+            grid: {
+              color: '#f3f4f6'
+            },
+            ticks: {
+              color: '#374151'
+            }
+          },
+          x: {
+            grid: {
+              display: false
+            },
+            ticks: {
+              color: '#374151'
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            display: false
+          }
+        }
+      }
+    });
+
+    // 初始化热门图书排行图
+    const popularBooksCtx = document.getElementById('popularBooks').getContext('2d');
+    new Chart(popularBooksCtx, {
+      type: 'bar',
+      data: {
+        labels: ['计算机科学', '文学', '历史', '哲学', '艺术', '心理学'],
+        datasets: [{
+          label: '借阅次数',
+          data: [280, 220, 180, 150, 130, 110],
+          backgroundColor: '#60a5fa',
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        scales: {
+          x: {
+            beginAtZero: true,
+            grid: {
+              color: '#f3f4f6'
+            },
+            ticks: {
+              color: '#374151'
+            }
+          },
+          y: {
+            grid: {
+              display: false
+            },
+            ticks: {
+              color: '#374151'
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            display: false
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>
