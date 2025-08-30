@@ -1,87 +1,212 @@
 <template>
-  <div class="reader-manage-container">
-    <div class="page-header">
-      <h1>读者管理</h1>
-      <div class="header-buttons">
-        <button class="import-btn" @click="showImportDialog" :disabled="isLoading || isProcessingImport">
-          {{ isProcessingImport ? '导入中...' : '导入读者' }}
-        </button>
-        <button class="add-reader-btn" @click="openAddModal" :disabled="isLoading">新增读者</button>
+  <!-- 页面标题和操作按钮 -->
+  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+    <h1 class="text-xl font-semibold">读者管理</h1>
+    <div class="flex gap-2 self-end sm:self-auto">
+      <button 
+        @click="showImportDialog" 
+        class="bg-secondary text-textPrimary py-2 px-4 rounded-md font-medium hover:bg-gray-200 transition-colors"
+        :disabled="isLoading || isProcessingImport"
+      >
+        <i class="fa fa-upload mr-2"></i>
+        {{ isProcessingImport ? '导入中...' : '导入读者' }}
+      </button>
+      <button 
+        @click="openAddModal" 
+        class="bg-primary text-white py-2 px-4 rounded-md font-medium hover:bg-primary/90 transition-colors"
+        :disabled="isLoading"
+      >
+        <i class="fa fa-user-plus mr-2"></i>添加读者
+      </button>
+    </div>
+  </div>
+  
+  <!-- 搜索和筛选区域 -->
+  <div class="bg-white rounded-lg border border-borderLight p-5 card-shadow mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <label class="block text-sm text-textSecondary mb-1">读者姓名</label>
+        <div class="relative">
+          <input 
+            type="text" 
+            v-model="searchParams.name"
+            placeholder="请输入读者姓名" 
+            class="w-full px-3 py-2 border border-borderMedium rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+          >
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm text-textSecondary mb-1">读者类型</label>
+        <select 
+          v-model="searchParams.type"
+          class="w-full px-3 py-2 border border-borderMedium rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+        >
+          <option value="">全部类型</option>
+          <option value="学生">学生</option>
+          <option value="教师">教师</option>
+          <option value="职工">职工</option>
+          <option value="其他">其他</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm text-textSecondary mb-1">读者ID</label>
+        <div class="relative">
+          <input 
+            type="text" 
+            v-model="searchParams.readerId"
+            placeholder="请输入读者ID" 
+            class="w-full px-3 py-2 border border-borderMedium rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+          >
+        </div>
       </div>
     </div>
-
-    <!-- 加载状态 -->
-    <div class="loading-container" v-if="isLoading">
-      <div class="loading-spinner"></div>
-      <p>加载中...</p>
+    
+    <div class="flex justify-end mt-4">
+      <button 
+        @click="resetSearch"
+        class="bg-secondary text-textPrimary py-2 px-4 rounded-md font-medium hover:bg-gray-200 transition-colors mr-2"
+        :disabled="isLoading"
+      >
+        <i class="fa fa-refresh mr-2"></i>重置
+      </button>
+      <button 
+        @click="searchReaders"
+        class="bg-primary text-white py-2 px-4 rounded-md font-medium hover:bg-primary/90 transition-colors"
+        :disabled="isLoading"
+      >
+        <i class="fa fa-search mr-2"></i>搜索
+      </button>
     </div>
+  </div>
+  
+  <!-- 加载状态 -->
+  <div v-if="isLoading" class="bg-white rounded-lg border border-borderLight p-8 card-shadow text-center">
+    <div class="flex flex-col items-center">
+      <div class="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+      <p class="text-textSecondary">正在加载读者数据...</p>
+    </div>
+  </div>
+  
+  <!-- 无结果提示 -->
+  <div v-if="!isLoading && readers.length === 0" class="bg-white rounded-lg border border-borderLight p-8 card-shadow text-center">
+    <p class="text-textSecondary">暂无读者数据</p>
+  </div>
 
-    <!-- 读者列表区 -->
-    <div class="reader-list-section" v-else>
-      <table class="reader-table">
-        <thead>
+  <!-- 读者列表 -->
+  <div v-if="!isLoading && readers.length > 0" class="bg-white rounded-lg border border-borderLight card-shadow overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-borderLight">
+        <thead class="bg-secondary">
           <tr>
-            <th>读者ID</th>
-            <th>姓名</th>
-            <th>学号/工号</th>
-            <th>类型</th>
-            <th>操作</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">读者ID</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">姓名</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">性别</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">类型</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">学号/工号</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">联系电话</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">邮箱</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">注册日期</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">操作</th>
           </tr>
         </thead>
-        <tbody>
-          <tr v-if="readers.length === 0">
-            <td colspan="5" class="empty-message">暂无读者数据</td>
-          </tr>
-          <tr v-else v-for="reader in readers" :key="reader.reader_id">
-            <td>{{ reader.reader_id }}</td>
-            <td>{{ reader.name }}</td>
-            <td>{{ reader.student_id }}</td>
-            <td>{{ reader.type === 'student' ? '学生' : reader.type === 'teacher' ? '教师' : '普通读者' }}</td>
-            <td class="action-buttons">
-              <button class="edit-btn" @click="editReader(reader.reader_id)">编辑</button>
-              <button class="delete-btn" @click="deleteReader(reader.reader_id)">删除</button>
+        <tbody class="bg-white divide-y divide-borderLight">
+          <tr v-for="reader in readers" :key="reader.reader_id" class="table-hover-row transition-colors">
+            <td class="px-6 py-4 whitespace-nowrap text-sm">RD-{{ String(reader.reader_id).padStart(3, '0') }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">{{ reader.name }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">{{ reader.gender || '-' }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">{{ getTypeText(reader.type) }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">{{ reader.student_id }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">{{ reader.phone || '-' }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">{{ reader.email || '-' }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">{{ formatDate(reader.created_at) }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+              <button 
+                @click="viewReader(reader.reader_id)"
+                class="text-primary hover:text-primary/80 mr-3 transition-colors"
+              >
+                查看
+              </button>
+              <button 
+                @click="editReader(reader.reader_id)"
+                class="text-primaryLight hover:text-primaryLight/80 mr-3 transition-colors"
+              >
+                编辑
+              </button>
+              <button 
+                @click="deleteReader(reader.reader_id)"
+                class="text-danger hover:text-danger/80 transition-colors"
+              >
+                删除
+              </button>
             </td>
           </tr>
         </tbody>
       </table>
-      
-      <!-- 分页控件 -->
-      <div class="pagination-container" v-if="total > 0">
-        <div class="pagination-info">
-          共 {{ total }} 条记录，当前第 {{ currentPage }}/{{ Math.ceil(total / pageSize) }} 页
+    </div>
+    
+    <!-- 分页 -->
+    <div class="px-6 py-4 bg-white border-t border-borderLight flex items-center justify-between">
+      <div class="flex-1 flex justify-between sm:hidden">
+        <button 
+          @click="handlePageChange(currentPage - 1)"
+          :disabled="currentPage === 1 || isLoading"
+          class="relative inline-flex items-center px-4 py-2 border border-borderMedium text-sm font-medium rounded-md text-textPrimary bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          上一页
+        </button>
+        <button 
+          @click="handlePageChange(currentPage + 1)"
+          :disabled="currentPage >= Math.ceil(total / pageSize) || isLoading"
+          class="ml-3 relative inline-flex items-center px-4 py-2 border border-borderMedium text-sm font-medium rounded-md text-textPrimary bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          下一页
+        </button>
+      </div>
+      <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+        <div>
+          <p class="text-sm text-textSecondary">
+            共 <span class="font-medium">{{ total }}</span> 条记录，当前第 <span class="font-medium">{{ currentPage }}</span>/<span class="font-medium">{{ Math.ceil(total / pageSize) }}</span> 页
+          </p>
         </div>
-        <div class="pagination-buttons">
-          <button 
-            class="page-btn" 
-            :disabled="currentPage === 1 || isLoading"
-            @click="handlePageChange(1)"
-          >
-            首页
-          </button>
-          <button 
-            class="page-btn" 
-            :disabled="currentPage === 1 || isLoading"
-            @click="handlePageChange(currentPage - 1)"
-          >
-            上一页
-          </button>
-          <button 
-            class="page-btn" 
-            :disabled="currentPage === Math.ceil(total / pageSize) || isLoading"
-            @click="handlePageChange(currentPage + 1)"
-          >
-            下一页
-          </button>
-          <button 
-            class="page-btn" 
-            :disabled="currentPage === Math.ceil(total / pageSize) || isLoading"
-            @click="handlePageChange(Math.ceil(total / pageSize))"
-          >
-            末页
-          </button>
+        <div>
+          <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+            <button 
+              @click="handlePageChange(1)"
+              :disabled="currentPage === 1 || isLoading"
+              class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-borderMedium bg-white text-sm font-medium text-textSecondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span class="sr-only">首页</span>
+              <i class="fa fa-angle-double-left text-xs"></i>
+            </button>
+            <button 
+              @click="handlePageChange(currentPage - 1)"
+              :disabled="currentPage === 1 || isLoading"
+              class="relative inline-flex items-center px-2 py-2 border border-borderMedium bg-white text-sm font-medium text-textSecondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span class="sr-only">上一页</span>
+              <i class="fa fa-chevron-left text-xs"></i>
+            </button>
+            <button 
+              @click="handlePageChange(currentPage + 1)"
+              :disabled="currentPage >= Math.ceil(total / pageSize) || isLoading"
+              class="relative inline-flex items-center px-2 py-2 border border-borderMedium bg-white text-sm font-medium text-textSecondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span class="sr-only">下一页</span>
+              <i class="fa fa-chevron-right text-xs"></i>
+            </button>
+            <button 
+              @click="handlePageChange(Math.ceil(total / pageSize))"
+              :disabled="currentPage >= Math.ceil(total / pageSize) || isLoading"
+              class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-borderMedium bg-white text-sm font-medium text-textSecondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span class="sr-only">末页</span>
+              <i class="fa fa-angle-double-right text-xs"></i>
+            </button>
+          </nav>
         </div>
       </div>
     </div>
+  </div>
 
     <!-- 新增读者弹窗 -->
     <div class="modal-overlay" v-if="isAddModalOpen" @click="closeAddModal">
@@ -274,7 +399,6 @@
         </div>
       </div>
     </div>
-  </div>
 </template>
 
 <script>
@@ -310,6 +434,12 @@ export default {
       isProcessingImport: false,        // 导入处理状态
       importFile: null,                 // 选中的导入文件
       importPreview: null,              // 导入数据预览
+      // 搜索参数
+      searchParams: {
+        name: '',
+        type: '',
+        readerId: ''
+      },
     };
   },
   mounted() {
@@ -326,30 +456,62 @@ export default {
           pageSize: this.pageSize
         };
         
+        // 只添加非空的搜索参数
+        if (this.searchParams.name && this.searchParams.name.trim()) {
+          params.name = this.searchParams.name.trim();
+        }
+        if (this.searchParams.type && this.searchParams.type !== '') {
+          params.type = this.searchParams.type;
+        }
+        if (this.searchParams.readerId && this.searchParams.readerId.trim()) {
+          params.readerId = this.searchParams.readerId.trim();
+        }
+        
+        console.log('正在获取读者列表，参数:', params);
         const response = await readerAPI.getReaders(params);
+        console.log('获取读者列表响应:', response);
         
         // 使用后端标准响应格式 {code, data, msg}
-        if ((response.code === 0 || response.code === 200) && response.data) {
-          this.readers = response.data.list || [];
-          this.total = response.data.total || 0;
+        if (response && (response.code === 0 || response.code === 200) && response.data) {
+          // 修复数据处理逻辑，确保正确处理分页数据
+          if (response.data.list) {
+            // 分页数据格式 {list: [...], total: N}
+            this.readers = response.data.list;
+            this.total = response.data.total || 0;
+          } else if (Array.isArray(response.data)) {
+            // 数组格式 [...]
+            this.readers = response.data;
+            this.total = response.data.length;
+          } else {
+            // 其他格式
+            this.readers = [];
+            this.total = 0;
+          }
+          console.log('成功获取读者列表:', this.readers.length, '条记录');
+          
+          // 确保DOM更新完成后再执行其他操作
+          this.$nextTick(() => {
+            console.log('DOM更新完成，读者列表已渲染');
+          });
         } else {
-          throw new Error(response.msg || '获取读者列表失败');
+          console.error('响应格式异常:', response);
+          throw new Error(response && response.msg ? response.msg : '获取读者列表失败');
         }
       } catch (error) {
         console.error('获取读者列表失败:', error);
         alert(error.message || '获取读者列表失败，请稍后重试');
         // 使用模拟数据避免页面空白
         this.readers = [
-          { id: 'R001', name: '张三', student_id: '20210001', type: '学生' },
-          { id: 'R002', name: '李四', student_id: '20210002', type: '学生' },
-          { id: 'R003', name: '王五', student_id: '20210003', type: '学生' },
-          { id: 'R004', name: '赵六', student_id: '20210004', type: '学生' },
-          { id: 'R005', name: '钱七', student_id: 'T0001', type: '教师' },
-          { id: 'R006', name: '孙八', student_id: 'T0002', type: '教师' },
-          { id: 'R007', name: '周九', student_id: 'T0003', type: '教师' },
-          { id: 'R008', name: '吴十', student_id: 'T0004', type: '教师' }
+          { reader_id: 1, name: '张三', student_id: '20210001', type: '学生' },
+          { reader_id: 2, name: '李四', student_id: '20210002', type: '学生' },
+          { reader_id: 3, name: '王五', student_id: '20210003', type: '学生' },
+          { reader_id: 4, name: '赵六', student_id: '20210004', type: '学生' },
+          { reader_id: 5, name: '钱七', student_id: 'T0001', type: '教师' },
+          { reader_id: 6, name: '孙八', student_id: 'T0002', type: '教师' },
+          { reader_id: 7, name: '周九', student_id: 'T0003', type: '教师' },
+          { reader_id: 8, name: '吴十', student_id: 'T0004', type: '教师' }
         ];
-        this.total = 20; // 模拟总记录数
+        this.total = this.readers.length;
       } finally {
         this.isLoading = false;
       }
@@ -751,138 +913,72 @@ export default {
      */
     formatFileSize(bytes) {
       return formatFileSize(bytes);
+    },
+    
+    /**
+     * 搜索读者
+     */
+    searchReaders() {
+      this.currentPage = 1;
+      this.fetchReaders();
+    },
+    
+    /**
+     * 重置搜索
+     */
+    resetSearch() {
+      this.searchParams = {
+        name: '',
+        type: '',
+        readerId: ''
+      };
+      this.currentPage = 1;
+      this.fetchReaders();
+    },
+    
+    /**
+     * 获取类型显示文本
+     */
+    getTypeText(type) {
+      const typeMap = {
+        '学生': '学生',
+        '教师': '教师',
+        '职工': '职工',
+        '普通读者': '其他',
+        'student': '学生',
+        'teacher': '教师',
+        'staff': '职工',
+        'other': '其他'
+      };
+      return typeMap[type] || '未知';
+    },
+    
+    /**
+     * 格式化日期
+     */
+    formatDate(dateTime) {
+      if (!dateTime) return '-';
+      try {
+        const date = new Date(dateTime);
+        return date.toISOString().split('T')[0];
+      } catch (error) {
+        return dateTime;
+      }
+    },
+    
+    /**
+     * 查看读者详情
+     */
+    viewReader(readerId) {
+      // TODO: 实现查看读者详情功能
+      console.log('查看读者:', readerId);
     }
   }
 };
 </script>
 
 <style scoped>
-/* 容器样式 */
-.reader-manage-container {
-  padding: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-/* 页面头部 */
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.page-header h1 {
-  font-size: 24px;
-  color: #333;
-}
-
-.header-buttons {
-  display: flex;
-  gap: 10px;
-}
-
-.add-reader-btn {
-  background-color: #1890ff;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.add-reader-btn:hover {
-  background-color: #40a9ff;
-}
-
-.import-btn {
-  background-color: #16a34a;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.import-btn:hover:not(:disabled) {
-  background-color: #15803d;
-  transform: translateY(-1px);
-}
-
-.import-btn:disabled {
-  background-color: #9ca3af;
-  cursor: not-allowed;
-  transform: none;
-}
-
-/* 读者列表 */
-.reader-list-section {
-  background: white;
-  border-radius: 4px;
-  padding: 20px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.reader-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.reader-table th,
-.reader-table td {
-  padding: 12px;
-  text-align: left;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.reader-table th {
-  background-color: #fafafa;
-  font-weight: 500;
-  color: #666;
-}
-
-/* 操作按钮 */
-.action-buttons {
-  display: flex;
-  gap: 8px;
-}
-
-.edit-btn {
-  background-color: #52c41a;
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.edit-btn:hover {
-  background-color: #73d13d;
-}
-
-.delete-btn {
-  background-color: #ff4d4f;
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.delete-btn:hover {
-  background-color: #ff7875;
-}
-
-/* 弹窗样式 */
+/* 保留必要的模态框样式 */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -891,214 +987,101 @@ export default {
   bottom: 0;
   background-color: rgba(0, 0, 0, 0.5);
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
   z-index: 1000;
 }
 
 .modal-content {
-  background: white;
-  border-radius: 4px;
-  width: 500px;
-  max-width: 90%;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background-color: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 24px;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 15px 20px;
+  border-bottom: 1px solid #e5e7eb;
 }
 
-.modal-header h2 {
-  margin: 0;
-  font-size: 18px;
-  color: #333;
+.modal-body {
+  padding: 20px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 15px 20px;
+  border-top: 1px solid #e5e7eb;
 }
 
 .close-btn {
   background: none;
   border: none;
-  font-size: 20px;
+  font-size: 24px;
+  color: #9ca3af;
   cursor: pointer;
-  color: #999;
-}
-
-.close-btn:hover {
-  color: #666;
-}
-
-.modal-body {
-  padding: 24px;
 }
 
 .form-group {
-  margin-bottom: 16px;
+  margin-bottom: 15px;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 8px;
-  color: #666;
-  font-size: 14px;
+  margin-bottom: 5px;
+  font-weight: 500;
+  color: #374151;
 }
 
 .form-group input,
 .form-group select {
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid #d1d5db;
   border-radius: 4px;
   font-size: 14px;
 }
 
-.form-group input:focus,
-.form-group select:focus {
-  outline: none;
-  border-color: #40a9ff;
-  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 16px 24px;
-  border-top: 1px solid #f0f0f0;
+.form-note {
+  background-color: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 15px;
+  font-size: 13px;
+  color: #0369a1;
 }
 
 .cancel-btn {
-  background-color: #fff;
-  color: #666;
-  border: 1px solid #d9d9d9;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.cancel-btn:hover {
-  color: #333;
-  border-color: #40a9ff;
-}
-
-.confirm-btn {
-  background-color: #1890ff;
+  background-color: #6c757d;
   color: white;
   border: none;
   padding: 8px 16px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 14px;
 }
 
-.confirm-btn:hover {
-  background-color: #40a9ff;
-}
-
-/* 分页控件样式 */
-.pagination-container {
-  margin-top: 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-top: 16px;
-  border-top: 1px solid #f0f0f0;
-}
-
-.pagination-info {
-  color: #666;
-  font-size: 14px;
-}
-
-.pagination-buttons {
-  display: flex;
-  gap: 8px;
-}
-
-.page-btn {
-  padding: 6px 12px;
-  border: 1px solid #d9d9d9;
-  background-color: white;
+.confirm-btn {
+  background-color: #2563eb;
+  color: white;
+  border: none;
+  padding: 8px 16px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 14px;
-  color: #666;
-  transition: all 0.3s;
 }
 
-.page-btn:hover:not(:disabled) {
-  color: #40a9ff;
-  border-color: #40a9ff;
+/* 表格悬停效果 */
+.table-hover-row:hover {
+  background-color: #f9fafb;
 }
 
-.page-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-  color: #999;
-}
-
-/* 响应式布局 */
-@media (max-width: 768px) {
-  .reader-manage-container {
-    padding: 10px;
-  }
-  
-  .page-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-  
-  .reader-list-section {
-    padding: 12px;
-    overflow-x: auto;
-  }
-  
-  .reader-table th,
-  .reader-table td {
-    padding: 8px;
-    font-size: 14px;
-  }
-  
-  .modal-content {
-    width: 95%;
-    margin: 20px;
-  }
-  
-  /* 分页响应式调整 */
-  .pagination-container {
-    flex-direction: column;
-    gap: 12px;
-    align-items: center;
-  }
-  
-  .pagination-info {
-    order: 2;
-  }
-  
-  .pagination-buttons {
-    order: 1;
-  }
-}
-
-@media (max-width: 480px) {
-  .action-buttons {
-    flex-direction: column;
-    gap: 4px;
-  }
-  
-  .edit-btn,
-  .delete-btn {
-    width: 100%;
-  }
-}
-
-/* 第3阶段新增：导入功能样式 */
-
-/* 导入弹窗样式 */
+/* 导入相关样式保留 */
 .import-modal {
   max-width: 800px;
   width: 95%;
@@ -1119,11 +1102,10 @@ export default {
   padding: 20px;
   border: 2px solid #e5e7eb;
   border-radius: 8px;
-  transition: all 0.3s;
 }
 
 .step-item.active {
-  border-color: #3b82f6;
+  border-color: #2563eb;
   background-color: #eff6ff;
 }
 
@@ -1142,31 +1124,12 @@ export default {
 }
 
 .step-item.active .step-number {
-  background-color: #3b82f6;
+  background-color: #2563eb;
   color: white;
 }
 
-.step-content {
-  flex: 1;
-}
-
-.step-content h4 {
-  margin: 0 0 8px 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.step-content p {
-  margin: 0 0 15px 0;
-  color: #6b7280;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-/* 模板下载按钮 */
 .template-btn {
-  background-color: #3b82f6;
+  background-color: #2563eb;
   color: white;
   border: none;
   padding: 10px 16px;
@@ -1177,32 +1140,15 @@ export default {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  transition: all 0.2s;
 }
 
-.template-btn:hover {
-  background-color: #2563eb;
-  transform: translateY(-1px);
-}
-
-.icon-download {
-  font-size: 16px;
-}
-
-/* 文件上传区域 */
 .file-upload-area {
   border: 2px dashed #d1d5db;
   border-radius: 8px;
   padding: 30px 20px;
   text-align: center;
-  transition: all 0.2s;
   cursor: pointer;
   margin-bottom: 15px;
-}
-
-.file-upload-area:hover {
-  border-color: #3b82f6;
-  background-color: #f8fafc;
 }
 
 .file-upload-area.has-file {
@@ -1213,210 +1159,4 @@ export default {
 .file-input {
   display: none;
 }
-
-.upload-content {
-  cursor: pointer;
-}
-
-.upload-placeholder {
-  color: #6b7280;
-}
-
-.upload-placeholder .icon-upload {
-  font-size: 24px;
-  margin-bottom: 10px;
-  display: block;
-}
-
-.upload-placeholder p {
-  margin: 5px 0;
-}
-
-.file-hint {
-  font-size: 12px;
-  color: #9ca3af;
-}
-
-.file-selected {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: #16a34a;
-  font-weight: 500;
-}
-
-.icon-file {
-  font-size: 20px;
-}
-
-.file-name {
-  font-weight: 600;
-}
-
-.file-size {
-  color: #6b7280;
-  font-size: 12px;
-  font-weight: normal;
-}
-
-.clear-file-btn {
-  background-color: #ef4444;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  cursor: pointer;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: 8px;
-}
-
-.clear-file-btn:hover {
-  background-color: #dc2626;
-}
-
-/* 解析按钮 */
-.parse-btn {
-  background-color: #f59e0b;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-
-.parse-btn:hover:not(:disabled) {
-  background-color: #d97706;
-  transform: translateY(-1px);
-}
-
-.parse-btn:disabled {
-  background-color: #9ca3af;
-  cursor: not-allowed;
-  transform: none;
-}
-
-/* 预览区域 */
-.preview-section {
-  margin-top: 15px;
-}
-
-.preview-summary {
-  background-color: #f0f9ff;
-  border: 1px solid #bae6fd;
-  border-radius: 6px;
-  padding: 15px;
-  margin-bottom: 20px;
-}
-
-.preview-summary p {
-  margin: 0 0 10px 0;
-  color: #0369a1;
-  font-weight: 500;
-}
-
-.preview-errors {
-  margin-top: 15px;
-}
-
-.preview-errors h5 {
-  margin: 0 0 10px 0;
-  color: #dc2626;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.preview-errors ul {
-  margin: 0;
-  padding-left: 20px;
-}
-
-.error-item {
-  color: #dc2626;
-  font-size: 13px;
-  margin-bottom: 5px;
-}
-
-.preview-table h5 {
-  margin: 0 0 15px 0;
-  color: #1f2937;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.sample-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-  background-color: white;
-  border-radius: 6px;
-  overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.sample-table th,
-.sample-table td {
-  padding: 8px 10px;
-  text-align: left;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.sample-table th {
-  background-color: #f9fafb;
-  font-weight: 600;
-  color: #374151;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.sample-table td {
-  color: #6b7280;
-}
-
-.sample-table tr:last-child td {
-  border-bottom: none;
-}
-
-/* 响应式设计增强 */
-@media (max-width: 768px) {
-  .import-modal {
-    width: 100%;
-    margin: 10px;
-    max-width: calc(100% - 20px);
-  }
-  
-  .step-item {
-    flex-direction: column;
-    text-align: center;
-  }
-  
-  .step-number {
-    align-self: center;
-  }
-  
-  .file-upload-area {
-    padding: 20px 15px;
-  }
-  
-  .sample-table {
-    font-size: 10px;
-  }
-  
-  .sample-table th,
-  .sample-table td {
-    padding: 6px 8px;
-  }
-  
-  .header-buttons {
-    flex-direction: column;
-    gap: 8px;
-  }
-}</style>
+</style>
