@@ -109,7 +109,7 @@
     </div>
     
     <!-- 热门图书区 - 数据表格 -->
-    <div class="bg-white p-6" v-if="popularBooks && popularBooks.length > 0">
+    <div class="bg-white p-6 mb-8" v-if="popularBooks && popularBooks.length > 0">
       <h2 class="text-xl font-semibold mb-4">热门图书列表</h2>
       <div class="table-container">
         <table class="table">
@@ -137,13 +137,118 @@
       </div>
     </div>
     
+    <!-- 第4阶段新增：读者借阅分析区 -->
+    <div class="bg-white p-6 mb-8" v-if="readerAnalysis && readerAnalysis.length > 0">
+      <h2 class="text-xl font-semibold mb-4">读者类型借阅分析</h2>
+      <div class="chart-container">
+        <div ref="readerPieChart" class="chart" style="width: 100%; height: 400px;"></div>
+      </div>
+      
+      <!-- 读者分析数据表 -->
+      <div class="table-container mt-4">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>读者类型</th>
+              <th>借阅次数</th>
+              <th>读者数量</th>
+              <th>平均借阅</th>
+              <th>占比</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="reader in readerAnalysis" :key="reader.reader_type">
+              <td>{{ reader.type_name }}</td>
+              <td class="borrow-count">{{ reader.borrow_count }}</td>
+              <td>{{ reader.reader_count }}</td>
+              <td>{{ reader.avg_borrows_per_reader }}</td>
+              <td>{{ reader.percentage }}%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    <!-- 第4阶段新增：借阅趋势分析区 -->
+    <div class="bg-white p-6 mb-8" v-if="trendData && trendData.labels && trendData.labels.length > 0">
+      <h2 class="text-xl font-semibold mb-4">借阅趋势分析</h2>
+      
+      <!-- 趋势筛选器 -->
+      <div class="flex flex-wrap gap-4 items-center mb-4">
+        <div class="form-group">
+          <label for="trend-range">时间范围</label>
+          <select id="trend-range" v-model="selectedTrendRange" class="form-select" @change="loadTrendData">
+            <option value="month">按月统计</option>
+            <option value="quarter">按季度统计</option>
+            <option value="year">按年统计</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label for="trend-count">数据点数</label>
+          <select id="trend-count" v-model="selectedTrendCount" class="form-select" @change="loadTrendData">
+            <option value="6">6</option>
+            <option value="12">12</option>
+            <option value="24">24</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="chart-container">
+        <div ref="trendChart" class="chart" style="width: 100%; height: 400px;"></div>
+      </div>
+    </div>
+    
+    <!-- 第4阶段新增：图书库存周转率区 -->
+    <div class="bg-white p-6 mb-8" v-if="turnoverData && turnoverData.length > 0">
+      <h2 class="text-xl font-semibold mb-4">图书库存周转率分析</h2>
+      
+      <!-- 周转率数据表 -->
+      <div class="table-container">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>书名</th>
+              <th>作者</th>
+              <th>库存</th>
+              <th>可借</th>
+              <th>借阅次数</th>
+              <th>周转率</th>
+              <th>利用率</th>
+              <th>效率评分</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="book in turnoverData" :key="book.book_id">
+              <td>{{ book.title }}</td>
+              <td>{{ book.author }}</td>
+              <td>{{ book.total_stock }}</td>
+              <td>{{ book.available }}</td>
+              <td class="borrow-count">{{ book.borrow_count }}</td>
+              <td class="turnover-rate">{{ book.turnover_rate }}</td>
+              <td class="utilization-rate">{{ book.utilization_rate }}%</td>
+              <td class="efficiency-score">{{ book.efficiency_score }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
     <!-- 无数据提示 -->
     <div class="bg-white p-6 mb-8" v-if="!isLoading && (!reportData || !reportData.dates || reportData.dates.length === 0)">
       <p class="text-center text-gray-500">暂无月度借阅统计数据</p>
     </div>
     
-    <div class="bg-white p-6" v-if="!isLoading && (!popularBooks || popularBooks.length === 0)">
+    <div class="bg-white p-6 mb-8" v-if="!isLoading && (!popularBooks || popularBooks.length === 0)">
       <p class="text-center text-gray-500">暂无热门图书数据</p>
+    </div>
+    
+    <div class="bg-white p-6 mb-8" v-if="!isLoading && (!readerAnalysis || readerAnalysis.length === 0)">
+      <p class="text-center text-gray-500">暂无读者分析数据</p>
+    </div>
+    
+    <div class="bg-white p-6" v-if="!isLoading && (!trendData || !trendData.labels || trendData.labels.length === 0)">
+      <p class="text-center text-gray-500">暂无趋势分析数据</p>
     </div>
   </div>
 </template>
@@ -172,13 +277,31 @@ export default {
       },
       // 热门图书数据 - 初始为空，从API获取
       popularBooks: [],
+      
+      // 第4阶段新增数据属性
+      // 读者借阅分析数据
+      readerAnalysis: [],
+      // 借阅趋势分析数据
+      trendData: {
+        labels: [],
+        datasets: []
+      },
+      // 趋势分析参数
+      selectedTrendRange: 'month',
+      selectedTrendCount: 12,
+      // 图书库存周转率数据
+      turnoverData: [],
+      
       // 加载状态
       isLoading: false,
       // 调试信息
       debugInfo: '',
-      // ECharts实例
+      
+      // ECharts实例 - 扩展新图表
       monthlyChart: null,
-      popularChart: null
+      popularChart: null,
+      readerPieChart: null,
+      trendChart: null
     };
   },
   methods: {
@@ -212,17 +335,38 @@ export default {
         }
         
         this.debugInfo += '调用热门图书统计API\n';
-        // 调用热门图书统计API
-        const popularBookStats = await statisticsAPI.getPopularBooks(this.selectedLimit, this.selectedPeriod);
+        // 调用热门图书统计API - 使用第4阶段新API
+        const popularBookStats = await statisticsAPI.getPopularBooksRanking({ 
+          limit: this.selectedLimit, 
+          period: this.selectedPeriod 
+        });
         
         this.debugInfo += `热门图书统计API返回: ${JSON.stringify(popularBookStats, null, 2)}\n`;
         
-        // 使用统一响应格式处理热门图书数据 - 参考Home.vue的成功模式
+        // 使用统一响应格式处理热门图书数据
         if (popularBookStats.success && popularBookStats.data) {
           this.popularBooks = popularBookStats.data || [];
           // 更新图表
           this.updatePopularChart();
         }
+        
+        // 第4阶段新增：调用读者借阅分析API
+        this.debugInfo += '调用读者借阅分析API\n';
+        const readerAnalysisStats = await statisticsAPI.getReaderBorrowAnalysis({ period: 'all' });
+        
+        this.debugInfo += `读者分析API返回: ${JSON.stringify(readerAnalysisStats, null, 2)}\n`;
+        
+        if (readerAnalysisStats.success && readerAnalysisStats.data) {
+          this.readerAnalysis = readerAnalysisStats.data || [];
+          // 更新读者饰图
+          this.updateReaderPieChart();
+        }
+        
+        // 加载趋势数据
+        await this.loadTrendData();
+        
+        // 加载库存周转率数据
+        await this.loadTurnoverData();
         
         this.debugInfo += `成功生成${this.selectedYear}年${this.selectedMonth}月的报表\n`;
         
@@ -247,6 +391,52 @@ export default {
      */
     goToHome() {
       this.$router.push('/');
+    },
+    
+    /**
+     * 加载借阅趋势数据
+     */
+    async loadTrendData() {
+      try {
+        this.debugInfo += '调用借阅趋势分析API\n';
+        const trendStats = await statisticsAPI.getBorrowTrend({
+          range: this.selectedTrendRange,
+          count: this.selectedTrendCount
+        });
+        
+        this.debugInfo += `趋势分析API返回: ${JSON.stringify(trendStats, null, 2)}\n`;
+        
+        if (trendStats.success && trendStats.data) {
+          this.trendData = trendStats.data;
+          // 更新趋势图表
+          this.updateTrendChart();
+        }
+      } catch (error) {
+        this.debugInfo += `借阅趋势数据加载失败: ${error.message}\n`;
+      }
+    },
+    
+    /**
+     * 加载图书库存周转率数据
+     */
+    async loadTurnoverData() {
+      try {
+        this.debugInfo += '调用图书库存周转率API\n';
+        const turnoverStats = await statisticsAPI.getBookTurnoverRate({
+          period: 'all',
+          limit: 15
+        });
+        
+        this.debugInfo += `库存周转率API返回: ${JSON.stringify(turnoverStats, null, 2)}\n`;
+        
+        if (turnoverStats.success && turnoverStats.data) {
+          this.turnoverData = turnoverStats.data || [];
+        }
+      } catch (error) {
+        this.debugInfo += `库存周转率数据加载失败: ${error.message}\n`;
+        // 如果API失败，清空数据显示
+        this.turnoverData = [];
+      }
     },
     
     /**
@@ -488,6 +678,176 @@ export default {
     },
     
     /**
+     * 初始化读者饰图
+     */
+    initReaderPieChart() {
+      if (this.$refs.readerPieChart) {
+        this.readerPieChart = echarts.init(this.$refs.readerPieChart);
+        
+        // 准备数据
+        const pieData = this.readerAnalysis.map(reader => ({
+          name: reader.type_name,
+          value: reader.borrow_count
+        }));
+        
+        // 配置饰图选项
+        const option = {
+          title: {
+            text: '读者类型借阅占比',
+            left: 'center',
+            top: 20
+          },
+          tooltip: {
+            trigger: 'item',
+            formatter: '{b}: {c} 次 ({d}%)'
+          },
+          legend: {
+            orient: 'vertical',
+            left: 'left'
+          },
+          series: [
+            {
+              name: '借阅次数',
+              type: 'pie',
+              radius: '60%',
+              data: pieData,
+              emphasis: {
+                itemStyle: {
+                  shadowBlur: 10,
+                  shadowOffsetX: 0,
+                  shadowColor: 'rgba(0, 0, 0, 0.5)'
+                }
+              },
+              itemStyle: {
+                color: function(params) {
+                  const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+                  return colors[params.dataIndex % colors.length];
+                }
+              }
+            }
+          ]
+        };
+        
+        this.readerPieChart.setOption(option);
+      }
+    },
+    
+    /**
+     * 初始化趋势折线图
+     */
+    initTrendChart() {
+      if (this.$refs.trendChart && this.trendData.datasets) {
+        this.trendChart = echarts.init(this.$refs.trendChart);
+        
+        // 准备数据
+        const series = this.trendData.datasets.map(dataset => ({
+          name: dataset.label,
+          type: 'line',
+          data: dataset.data,
+          lineStyle: {
+            color: dataset.borderColor
+          },
+          itemStyle: {
+            color: dataset.borderColor
+          },
+          smooth: true
+        }));
+        
+        // 配置图表选项
+        const option = {
+          title: {
+            text: `${this.selectedTrendRange === 'month' ? '月度' : 
+                    this.selectedTrendRange === 'quarter' ? '季度' : '年度'}借阅趋势`,
+            left: 'center',
+            top: 20
+          },
+          tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+              type: 'cross',
+              label: {
+                backgroundColor: '#6a7985'
+              }
+            }
+          },
+          legend: {
+            data: this.trendData.datasets.map(d => d.label),
+            top: 50
+          },
+          grid: {
+            left: '3%',
+            right: '4%',
+            bottom: '3%',
+            top: '15%',
+            containLabel: true
+          },
+          xAxis: {
+            type: 'category',
+            boundaryGap: false,
+            data: this.trendData.labels
+          },
+          yAxis: {
+            type: 'value',
+            name: '数量',
+            min: 0
+          },
+          series: series
+        };
+        
+        this.trendChart.setOption(option);
+      }
+    },
+    
+    /**
+     * 更新读者饰图
+     */
+    updateReaderPieChart() {
+      if (this.readerPieChart) {
+        const pieData = this.readerAnalysis.map(reader => ({
+          name: reader.type_name,
+          value: reader.borrow_count
+        }));
+        
+        this.readerPieChart.setOption({
+          series: [{
+            data: pieData
+          }]
+        });
+      } else {
+        this.initReaderPieChart();
+      }
+    },
+    
+    /**
+     * 更新趋势图表
+     */
+    updateTrendChart() {
+      if (this.trendChart && this.trendData.datasets) {
+        const series = this.trendData.datasets.map(dataset => ({
+          name: dataset.label,
+          type: 'line',
+          data: dataset.data,
+          lineStyle: {
+            color: dataset.borderColor
+          },
+          itemStyle: {
+            color: dataset.borderColor
+          },
+          smooth: true
+        }));
+        
+        this.trendChart.setOption({
+          xAxis: {
+            data: this.trendData.labels
+          },
+          series: series
+        });
+      } else {
+        this.initTrendChart();
+      }
+    },
+    
+    /**
      * 处理窗口大小变化，重新调整图表尺寸
      */
     handleResize() {
@@ -496,6 +856,12 @@ export default {
       }
       if (this.popularChart) {
         this.popularChart.resize();
+      }
+      if (this.readerPieChart) {
+        this.readerPieChart.resize();
+      }
+      if (this.trendChart) {
+        this.trendChart.resize();
       }
     }
   },
@@ -517,6 +883,12 @@ export default {
     }
     if (this.popularChart) {
       this.popularChart.dispose();
+    }
+    if (this.readerPieChart) {
+      this.readerPieChart.dispose();
+    }
+    if (this.trendChart) {
+      this.trendChart.dispose();
     }
   }
 };
@@ -741,6 +1113,22 @@ button:disabled {
 .overdue-count {
   font-weight: 600;
   color: #ef4444;
+}
+
+/* 库存周转率相关样式 */
+.turnover-rate {
+  font-weight: 600;
+  color: #059669;
+}
+
+.utilization-rate {
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.efficiency-score {
+  font-weight: 600;
+  color: #7c3aed;
 }
 
 /* 图表容器样式 */

@@ -162,7 +162,7 @@ export const readerAPI = {
 export const statisticsAPI = {
   // 获取借阅统计 - 修正为正确的后端路径
   getBorrowStats: () => api.get('/statistics/monthly'),
-  // 获取热门图书
+  // 获取热门图书 - 保持原有接口兼容性
   getPopularBooks: (limit = 10) => api.get('/statistics/topBooks', { params: { limit, period: 'month' } }),
   // 获取月度统计
   getMonthlyStats: (params) => api.get('/statistics/monthly', { params }),
@@ -172,5 +172,45 @@ export const statisticsAPI = {
   getBorrowTrends: (params) => api.get('/statistics/borrows/monthly', { params }),
   // 获取逾期统计 - 使用borrows接口的查询参数
   getOverdueStats: (params) => api.get('/borrows', { params: { ...params, is_overdue: true } }),
+  
+  // 第4阶段新增：热门图书排行榜API
+  getPopularBooksRanking: (params = {}) => {
+    const { limit = 10, period = 'all' } = params;
+    return api.get('/statistics/books/popular', { 
+      params: { limit, period }
+    });
+  },
+  
+  // 第4阶段新增：读者借阅分析API
+  getReaderBorrowAnalysis: (params = {}) => {
+    const { period = 'all' } = params;
+    return api.get('/statistics/readers/borrows', {
+      params: { period }
+    });
+  },
+  
+  // 第4阶段新增：月度借阅趋势分析（扩展版）
+  getBorrowTrendAnalysis: (params = {}) => {
+    const { months = 6 } = params;
+    return api.get('/statistics/borrows/monthly', {
+      params: { months }
+    });
+  },
+  
+  // 第4阶段第2天新增：借阅趋势分析API（支持多种时间范围）
+  getBorrowTrend: (params = {}) => {
+    const { range = 'month', count = 12, start_date, end_date } = params;
+    return api.get('/statistics/borrows/trend', {
+      params: { range, count, start_date, end_date }
+    });
+  },
+  
+  // 第4阶段第2天新增：图书库存周转率统计API
+  getBookTurnoverRate: (params = {}) => {
+    const { period = 'all', category_id, limit = 20 } = params;
+    return api.get('/statistics/books/turnover', {
+      params: { period, category_id, limit }
+    });
+  },
 };
 export default api;
