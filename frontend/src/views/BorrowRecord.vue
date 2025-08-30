@@ -15,6 +15,16 @@
           <option value="overdue">逾期</option>
         </select>
       </div>
+      <div class="filter-item">
+        <button 
+          @click="exportBorrowRecords"
+          class="export-btn"
+          :disabled="isProcessingExport || borrowRecords.length === 0"
+        >
+          <i class="icon-export">↓</i>
+          {{ isProcessingExport ? '导出中...' : '导出记录' }}
+        </button>
+      </div>
     </div>
     
     <!-- 加载状态 -->
@@ -158,7 +168,8 @@ export default {
       total: 0,             // 总记录数
       showReturnConfirm: false, // 是否显示还书确认弹窗
       currentBorrowId: '',       // 当前操作的借阅ID
-      currentBorrowRecord: null  // 当前操作的借阅记录
+      currentBorrowRecord: null, // 当前操作的借阅记录
+      isProcessingExport: false  // 导出处理状态
     };
   },
   mounted() {
@@ -472,6 +483,67 @@ export default {
       } finally {
         this.isSubmitting = false;
       }
+    },
+    
+    /**
+     * 导出借阅记录数据
+     */
+    async exportBorrowRecords() {
+      try {
+        this.isProcessingExport = true;
+        
+        // 构建导出参数，使用当前的筛选条件
+        const exportParams = {};
+        
+        if (this.filterStatus !== 'all') {
+          exportParams.status = this.filterStatus;
+        }
+        
+        console.log('导出借阅记录参数:', exportParams);
+        
+        // 调用导出API
+        const response = await borrowAPI.exportBorrows(exportParams);
+        
+        // 创建下载链接
+        const blob = new Blob([response.data], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        });
+        
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        
+        // 生成文件名
+        const timestamp = new Date().toISOString().slice(0, 10);
+        const statusText = this.filterStatus === 'all' ? '全部' : this.getStatusText(this.filterStatus);
+        const fileName = `借阅记录导出_${statusText}_${timestamp}.xlsx`;
+        link.download = fileName;
+        
+        // 触发下载
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // 清理URL对象
+        window.URL.revokeObjectURL(url);
+        
+        console.log('借阅记录导出成功:', fileName);
+        alert('借阅记录导出成功！');
+        
+      } catch (error) {
+        console.error('导出失败:', error);
+        let errorMessage = '导出失败';
+        
+        if (error.response && error.response.data && error.response.data.msg) {
+          errorMessage += ': ' + error.response.data.msg;
+        } else if (error.message) {
+          errorMessage += ': ' + error.message;
+        }
+        
+        alert(errorMessage);
+      } finally {
+        this.isProcessingExport = false;
+      }
     }
   }
 };
@@ -497,6 +569,9 @@ export default {
   padding: 15px;
   border-radius: 4px;
   margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .filter-item {
@@ -517,6 +592,33 @@ export default {
   font-size: 14px;
   background-color: #fff;
   cursor: pointer;
+}
+
+/* 导出按钮样式 */
+.export-btn {
+  background-color: #0891b2;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.export-btn:hover:not(:disabled) {
+  background-color: #0e7490;
+  transform: translateY(-1px);
+}
+
+.export-btn:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .table-section {

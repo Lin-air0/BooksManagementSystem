@@ -106,6 +106,11 @@ export const bookAPI = {
       'Content-Type': 'multipart/form-data'
     }
   }),
+  // 第3阶段新增：图书导出
+  exportBooks: (params) => api.get('/books/export', { 
+    params,
+    responseType: 'blob' // 重要：设置响应类型为blob
+  }),
 };
 
 // 借阅相关API - 根据后端实际接口配置（已修正）
@@ -124,6 +129,11 @@ export const borrowAPI = {
   returnBookOld: (data) => api.put('/return', data),
   // 获取逾期记录 - 第1阶段新增
   getOverdueRecords: (params) => api.get('/borrows/overdue', { params }),
+  // 第3阶段新增：借阅记录导出
+  exportBorrows: (params) => api.get('/borrows/export', { 
+    params,
+    responseType: 'blob' // 重要：设置响应类型为blob
+  }),
 };
 
 // 读者相关API - 支持登录认证

@@ -5,6 +5,7 @@ const { pool } = require('../config/db.js'); // 使用数据库配置文件中�
 const { uploadExcel, handleUploadError, cleanupTempFile } = require('../middleware/fileUpload');
 const { parseExcelFile, validateExcelData, convertExcelToObjects } = require('../utils/excelHelper');
 const path = require('path');
+const XLSX = require('xlsx'); // 添加XLSX库导入
 
 // 查询函数
 async function query(sql, params = []) {
@@ -466,6 +467,144 @@ router.post('/', async (req, res) => {
  *       500:
  *         description: 服务器错误
  */
+
+/**
+ * @swagger
+ * /api/books/export:
+ *   get:
+ *     summary: 导出图书数据
+ *     description: 导出图书列表到Excel文件
+ *     parameters:
+ *       - in: query
+ *         name: format
+ *         schema:
+ *           type: string
+ *           enum: [xlsx, csv]
+ *         description: 导出格式，默认为xlsx
+ *       - in: query
+ *         name: category_id
+ *         schema:
+ *           type: integer
+ *         description: 分类筛选
+ *       - in: query
+ *         name: publisher
+ *         schema:
+ *           type: string
+ *         description: 出版社筛选
+ *     responses:
+ *       200:
+ *         description: 导出成功
+ *         content:
+ *           application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       500:
+ *         description: 服务器错误
+ */
+router.get('/export', async (req, res) => {
+  try {
+    const { format = 'xlsx', category_id, publisher } = req.query;
+    
+    console.log('导出图书数据请求:', { format, category_id, publisher });
+    
+    // 构建查询SQL
+    let sql = `
+      SELECT 
+        b.book_id as '图书ID',
+        b.title as '书名',
+        b.author as '作者',
+        b.isbn as 'ISBN',
+        b.publisher as '出版社',
+        DATE_FORMAT(b.publish_date, '%Y-%m-%d') as '出版日期',
+        b.stock as '库存总数',
+        b.available as '可借数量',
+        bc.name as '分类'
+      FROM books b
+      LEFT JOIN book_categories bc ON b.category_id = bc.category_id
+      WHERE 1=1
+    `;
+    
+    const params = [];
+    
+    // 分类筛选
+    if (category_id && !isNaN(category_id)) {
+      sql += ' AND b.category_id = ?';
+      params.push(parseInt(category_id));
+    }
+    
+    // 出版社筛选
+    if (publisher && publisher.trim()) {
+      sql += ' AND b.publisher LIKE ?';
+      params.push(`%${publisher.trim()}%`);
+    }
+    
+    sql += ' ORDER BY b.book_id ASC';
+    
+    console.log('执行导出查询:', { sql, params });
+    
+    // 执行查询
+    const result = await query(sql, params);
+    
+    console.log(`查询到 ${result.length} 条图书记录`);
+    
+    if (result.length === 0) {
+      return res.status(200).json({
+        code: 200,
+        data: null,
+        msg: '没有找到符合条件的图书数据'
+      });
+    }
+    
+    // 创建工作簿
+    const workbook = XLSX.utils.book_new();
+    
+    // 创建工作表
+    const worksheet = XLSX.utils.json_to_sheet(result);
+    
+    // 设置列宽
+    const colWidths = [
+      { wch: 8 },  // 图书ID
+      { wch: 25 }, // 书名
+      { wch: 15 }, // 作者
+      { wch: 18 }, // ISBN
+      { wch: 20 }, // 出版社
+      { wch: 12 }, // 出版日期
+      { wch: 10 }, // 库存总数
+      { wch: 10 }, // 可借数量
+      { wch: 12 }  // 分类
+    ];
+    worksheet['!cols'] = colWidths;
+    
+    // 添加工作表到工作簿
+    XLSX.utils.book_append_sheet(workbook, worksheet, '图书列表');
+    
+    // 生成Excel文件
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    
+    // 设置响应头
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+    const filename = `图书列表_${timestamp}.xlsx`;
+    
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+    res.setHeader('Content-Length', buffer.length);
+    
+    console.log(`导出文件成功: ${filename}, 大小: ${buffer.length} bytes`);
+    
+    // 发送文件
+    res.send(buffer);
+    
+  } catch (error) {
+    console.error('导出图书数据失败:', error);
+    res.status(500).json({
+      code: 500,
+      data: null,
+      msg: `导出失败: ${error.message}`
+    });
+  }
+});
+
 router.get('/:id', async (req, res) => {
   try {
     const bookId = parseInt(req.params.id);
@@ -1312,5 +1451,6 @@ function cleanBookData(bookData, categoryMap) {
   
   return cleaned;
 }
+
 
 module.exports = router;

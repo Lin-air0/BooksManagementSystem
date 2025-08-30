@@ -2,6 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/db.js'); // 使用数据库配置文件中的连接池
+const XLSX = require('xlsx'); // 添加XLSX库导入
 
 // 查询函数（支持普通查询和事务命令）
 async function query(sql, params = []) {
@@ -985,6 +986,200 @@ router.post('/return', async (req, res) => {
       code: 500,
       data: null,
       msg: errorMessage
+    });
+  }
+});
+
+
+/**
+ * @swagger
+ * /api/borrows/export:
+ *   get:
+ *     summary: 导出借阅记录数据
+ *     description: 导出借阅记录列表为Excel文件
+ *     parameters:
+ *       - in: query
+ *         name: format
+ *         schema:
+ *           type: string
+ *           enum: [xlsx, csv]
+ *           default: xlsx
+ *         description: 导出格式
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [borrowed, returned, overdue, all]
+ *           default: all
+ *         description: 筛选借阅状态
+ *       - in: query
+ *         name: reader_id
+ *         schema:
+ *           type: integer
+ *         description: 筛选读者ID
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: 开始日期
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: 结束日期
+ *     responses:
+ *       200:
+ *         description: 导出成功
+ *         content:
+ *           application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       500:
+ *         description: 导出失败
+ */
+router.get('/export', async (req, res) => {
+  try {
+    console.log('收到借阅记录导出请求:', req.query);
+    
+    const { format = 'xlsx', status = 'all', reader_id, start_date, end_date } = req.query;
+    
+    // 构建查询条件
+    let whereClauses = ['1=1']; // 默认条件
+    let queryParams = [];
+    
+    // 状态筛选
+    if (status !== 'all') {
+      if (status === 'overdue') {
+        whereClauses.push('((b.status = "overdue") OR (b.status = "borrowed" AND b.due_date < NOW()))');
+      } else {
+        whereClauses.push('b.status = ?');
+        queryParams.push(status);
+      }
+    }
+    
+    // 读者筛选
+    if (reader_id) {
+      whereClauses.push('b.reader_id = ?');
+      queryParams.push(parseInt(reader_id));
+    }
+    
+    // 日期筛选
+    if (start_date) {
+      whereClauses.push('b.borrow_date >= ?');
+      queryParams.push(start_date);
+    }
+    
+    if (end_date) {
+      whereClauses.push('b.borrow_date <= ?');
+      queryParams.push(end_date + ' 23:59:59');
+    }
+    
+    const whereClause = 'WHERE ' + whereClauses.join(' AND ');
+    
+    // 查询借阅记录数据
+    const sql = `
+      SELECT 
+        b.borrow_id as '借阅ID',
+        r.name as '读者姓名',
+        r.student_id as '学号',
+        r.email as '邮箱',
+        r.phone as '电话',
+        bk.title as '图书名称',
+        bk.author as '作者',
+        bk.isbn as 'ISBN',
+        DATE_FORMAT(b.borrow_date, '%Y-%m-%d') as '借阅日期',
+        DATE_FORMAT(b.due_date, '%Y-%m-%d') as '应还日期',
+        CASE 
+          WHEN b.return_date IS NULL THEN ''
+          ELSE DATE_FORMAT(b.return_date, '%Y-%m-%d')
+        END as '实际归还日期',
+        CASE 
+          WHEN b.status = 'borrowed' AND b.due_date < NOW() THEN '已逾期'
+          WHEN b.status = 'borrowed' THEN '借阅中'
+          WHEN b.status = 'returned' THEN '已归还'
+          WHEN b.status = 'overdue' THEN '已逾期'
+          ELSE b.status
+        END as '状态',
+        CASE 
+          WHEN b.status = 'borrowed' AND b.due_date < NOW() THEN DATEDIFF(NOW(), b.due_date)
+          WHEN b.status = 'overdue' THEN DATEDIFF(COALESCE(b.return_date, NOW()), b.due_date)
+          WHEN b.status = 'returned' AND b.return_date > b.due_date THEN DATEDIFF(b.return_date, b.due_date)
+          ELSE 0
+        END as '逾期天数'
+      FROM borrows b
+      LEFT JOIN readers r ON b.reader_id = r.reader_id
+      LEFT JOIN books bk ON b.book_id = bk.book_id
+      ${whereClause}
+      ORDER BY b.borrow_date DESC
+    `;
+    
+    console.log('导出SQL:', sql);
+    console.log('导出参数:', queryParams);
+    
+    const borrows = await query(sql, queryParams);
+    
+    console.log(`查询到 ${borrows.length} 条借阅记录`);
+    
+    if (borrows.length === 0) {
+      return res.status(200).json({
+        code: 200,
+        data: null,
+        msg: '没有找到符合条件的借阅记录数据'
+      });
+    }
+    
+    // 创建工作簿
+    const workbook = XLSX.utils.book_new();
+    
+    // 创建工作表
+    const worksheet = XLSX.utils.json_to_sheet(borrows);
+    
+    // 设置列宽
+    const colWidths = [
+      { wch: 8 },  // 借阅ID
+      { wch: 12 }, // 读者姓名
+      { wch: 15 }, // 学号
+      { wch: 20 }, // 邮箱
+      { wch: 15 }, // 电话
+      { wch: 25 }, // 图书名称
+      { wch: 15 }, // 作者
+      { wch: 18 }, // ISBN
+      { wch: 12 }, // 借阅日期
+      { wch: 12 }, // 应还日期
+      { wch: 12 }, // 实际归还日期
+      { wch: 10 }, // 状态
+      { wch: 8 }   // 逾期天数
+    ];
+    worksheet['!cols'] = colWidths;
+    
+    // 添加工作表到工作簿
+    XLSX.utils.book_append_sheet(workbook, worksheet, '借阅记录');
+    
+    // 生成Excel文件
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    
+    // 设置响应头
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+    const filename = `借阅记录_${timestamp}.xlsx`;
+    
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+    res.setHeader('Content-Length', buffer.length);
+    
+    console.log(`导出文件成功: ${filename}, 大小: ${buffer.length} bytes`);
+    
+    // 发送文件
+    res.send(buffer);
+    
+  } catch (error) {
+    console.error('借阅记录导出失败:', error);
+    res.status(500).json({
+      code: 500,
+      data: null,
+      msg: `导出失败: ${error.message}`
     });
   }
 });

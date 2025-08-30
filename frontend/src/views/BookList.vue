@@ -167,8 +167,16 @@
         <p>无匹配的图书</p>
       </div>
       
-      <!-- 操作工具栏（导入功能） -->
+      <!-- 操作工具栏（导入和导出功能） -->
       <div v-if="!isLoading" class="operations-toolbar">
+        <button 
+          @click="exportBooks"
+          class="export-btn"
+          :disabled="isProcessingExport || filteredBooks.length === 0"
+        >
+          <i class="icon-export">↓</i>
+          {{ isProcessingExport ? '导出中...' : '导出图书' }}
+        </button>
         <button 
           @click="showImportDialog"
           class="import-btn"
@@ -750,6 +758,8 @@ export default {
       isProcessingImport: false,        // 导入处理状态
       importFile: null,                 // 选中的导入文件
       importPreview: null,              // 导入数据预览
+      // 第3阶段新增：导出相关状态
+      isProcessingExport: false,        // 导出处理状态
       // 移除还书相关状态 - 还书功能应在借阅记录页面处理
     };
   },
@@ -1816,6 +1826,74 @@ export default {
      */
     formatFileSize(bytes) {
       return formatFileSize(bytes);
+    },
+    
+    /**
+     * 导出图书数据
+     */
+    async exportBooks() {
+      try {
+        this.isProcessingExport = true;
+        
+        // 构建导出参数，使用当前的筛选条件
+        const exportParams = {};
+        
+        if (this.searchParams.category) {
+          exportParams.category = this.searchParams.category;
+        }
+        
+        if (this.searchParams.author) {
+          exportParams.author = this.searchParams.author;
+        }
+        
+        if (this.searchParams.publisher) {
+          exportParams.publisher = this.searchParams.publisher;
+        }
+        
+        console.log('导出参数:', exportParams);
+        
+        // 调用导出API
+        const response = await bookAPI.exportBooks(exportParams);
+        
+        // 创建下载链接
+        const blob = new Blob([response.data], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        });
+        
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        
+        // 生成文件名
+        const timestamp = new Date().toISOString().slice(0, 10);
+        const fileName = `图书数据导出_${timestamp}.xlsx`;
+        link.download = fileName;
+        
+        // 触发下载
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // 清理URL对象
+        window.URL.revokeObjectURL(url);
+        
+        console.log('图书数据导出成功:', fileName);
+        alert('图书数据导出成功！');
+        
+      } catch (error) {
+        console.error('导出失败:', error);
+        let errorMessage = '导出失败';
+        
+        if (error.response && error.response.data && error.response.data.msg) {
+          errorMessage += ': ' + error.response.data.msg;
+        } else if (error.message) {
+          errorMessage += ': ' + error.message;
+        }
+        
+        alert(errorMessage);
+      } finally {
+        this.isProcessingExport = false;
+      }
     }
   },
   
@@ -2888,6 +2966,34 @@ export default {
 }
 
 .import-btn:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 导出按钮样式 */
+.export-btn {
+  background-color: #0891b2;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  margin-right: 10px;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.export-btn:hover:not(:disabled) {
+  background-color: #0e7490;
+  transform: translateY(-1px);
+}
+
+.export-btn:disabled {
   background-color: #9ca3af;
   cursor: not-allowed;
   transform: none;
