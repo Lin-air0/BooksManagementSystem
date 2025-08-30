@@ -671,10 +671,328 @@ router.get('/', async (req, res) => {
     });
   }
 });
+
+/**
+ * 逾期提醒功能API - GET /api/borrows/overdue
+ * 查询所有逾期的借阅记录，计算逾期天数
+ * @swagger
+ * /api/borrows/overdue:
+ *   get:
+ *     summary: 查询逾期记录
+ *     description: 获取所有逾期的借阅记录，支持分页和统计信息
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 页码
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: 每页数量
+ *     responses:
+ *       200:
+ *         description: 查询成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                   example: 200
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                       description: 总记录数
+ *                     list:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           borrow_id:
+ *                             type: integer
+ *                           reader_name:
+ *                             type: string
+ *                           reader_email:
+ *                             type: string
+ *                           book_title:
+ *                             type: string
+ *                           due_date:
+ *                             type: string
+ *                           overdue_days:
+ *                             type: integer
+ *                           actual_status:
+ *                             type: string
+ *                     stats:
+ *                       type: object
+ *                       properties:
+ *                         total_overdue:
+ *                           type: integer
+ *                         severe_overdue:
+ *                           type: integer
+ *                           description: 超期30天以上
+ *                         moderate_overdue:
+ *                           type: integer
+ *                           description: 超期7-30天
+ *                         mild_overdue:
+ *                           type: integer
+ *                           description: 超期1-7天
+ *                 msg:
+ *                   type: string
+ *                   example: 查询逾期记录成功
+ */
+router.get('/overdue', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = parseInt(req.query.pageSize) || 10;
+    
+    // 参数验证
+    if (page < 1 || pageSize < 1 || pageSize > 100) {
+      return res.status(400).json({
+        code: 400,
+        data: null,
+        msg: '分页参数无效'
+      });
+    }
+    
+    const offset = (page - 1) * pageSize;
+    
+    // 查询总记录数 - 包含状态为overdue或borrowed但已过期的记录
+    const countSql = `
+      SELECT COUNT(*) as total
+      FROM borrows b
+      JOIN readers r ON b.reader_id = r.reader_id
+      JOIN books bk ON b.book_id = bk.book_id
+      WHERE (b.status = 'overdue') OR (b.status = 'borrowed' AND b.due_date < NOW())
+    `;
+    const [countResult] = await query(countSql);
+    const total = countResult.total;
+    
+    // 查询逾期记录详情
+    const sql = `
+      SELECT 
+        b.borrow_id,
+        b.reader_id,
+        r.name as reader_name,
+        r.email as reader_email,
+        r.phone as reader_phone,
+        b.book_id,
+        bk.title as book_title,
+        bk.author as book_author,
+        b.borrow_date,
+        b.due_date,
+        b.return_date,
+        b.status,
+        DATEDIFF(NOW(), b.due_date) as overdue_days,
+        CASE 
+          WHEN b.status = 'borrowed' AND b.due_date < NOW() THEN 'overdue'
+          ELSE b.status
+        END as actual_status
+      FROM borrows b
+      JOIN readers r ON b.reader_id = r.reader_id
+      JOIN books bk ON b.book_id = bk.book_id
+      WHERE (b.status = 'overdue') OR (b.status = 'borrowed' AND b.due_date < NOW())
+      ORDER BY b.due_date ASC, overdue_days DESC
+      LIMIT ${pageSize} OFFSET ${offset}
+    `;
+    
+    const overdueRecords = await query(sql);
+    
+    // 统计信息
+    const stats = {
+      total_overdue: total,
+      severe_overdue: overdueRecords.filter(record => record.overdue_days > 30).length,
+      moderate_overdue: overdueRecords.filter(record => record.overdue_days > 7 && record.overdue_days <= 30).length,
+      mild_overdue: overdueRecords.filter(record => record.overdue_days <= 7).length
+    };
+    
+    res.json({
+      code: 200,
+      data: {
+        total,
+        list: overdueRecords,
+        stats,
+        page,
+        pageSize
+      },
+      msg: '查询逾期记录成功'
+    });
+    
+  } catch (error) {
+    console.error('查询逾期记录失败:', error);
+    res.status(500).json({
+      code: 500,
+      data: null,
+      msg: '查询逾期记录失败，请稍后重试'
+    });
+  }
+});
+
+/**
+ * 新的还书功能API - POST /api/borrows/return
+ * 按照第1阶段计划设计，接收borrow_id，更新return_date和status，同步库存
+ * @swagger
+ * /api/borrows/return:
+ *   post:
+ *     summary: 还书功能接口
+ *     description: 办理图书归还手续，更新借阅状态和库存
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               borrow_id:
+ *                 type: integer
+ *                 description: 借阅记录ID
+ *                 example: 1
+ *             required:
+ *               - borrow_id
+ *     responses:
+ *       200:
+ *         description: 还书成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                   example: 200
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     borrow_id:
+ *                       type: integer
+ *                     book_id:
+ *                       type: integer
+ *                     reader_id:
+ *                       type: integer
+ *                     return_date:
+ *                       type: string
+ *                       format: date-time
+ *                     status:
+ *                       type: string
+ *                       example: "returned"
+ *                     is_overdue:
+ *                       type: boolean
+ *                     overdue_days:
+ *                       type: integer
+ *                 msg:
+ *                   type: string
+ *                   example: "还书成功"
+ *       400:
+ *         description: 参数错误或业务错误
+ *       500:
+ *         description: 服务器错误
+ */
+router.post('/return', async (req, res) => {
+  try {
+    const { borrow_id } = req.body;
+    
+    // 参数校验
+    if (!borrow_id) {
+      return res.status(400).json({
+        code: 400,
+        data: null,
+        msg: '缺少必要参数: borrow_id'
+      });
+    }
+    
+    // 检查借阅记录是否存在且未归还
+    const borrows = await query(
+      'SELECT * FROM borrows WHERE borrow_id = ? AND status IN (?, ?)', 
+      [borrow_id, 'borrowed', 'overdue']
+    );
+    
+    if (borrows.length === 0) {
+      return res.status(400).json({
+        code: 400,
+        data: null,
+        msg: '借阅记录不存在或已归还'
+      });
+    }
+    
+    const borrow = borrows[0];
+    
+    // 开始事务
+    await query('START TRANSACTION');
+    
+    try {
+      // 更新借阅记录状态
+      const return_date = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      
+      await query(
+        'UPDATE borrows SET status = ?, return_date = ? WHERE borrow_id = ?',
+        ['returned', return_date, borrow_id]
+      );
+      
+      // 更新图书库存（available +1）
+      await query(
+        'UPDATE books SET available = available + 1 WHERE book_id = ?', 
+        [borrow.book_id]
+      );
+      
+      // 提交事务
+      await query('COMMIT');
+      
+      // 计算逾期信息
+      const dueDate = new Date(borrow.due_date);
+      const returnDate = new Date(return_date);
+      const is_overdue = returnDate > dueDate;
+      const overdue_days = is_overdue ? Math.ceil((returnDate - dueDate) / (1000 * 60 * 60 * 24)) : 0;
+      
+      res.json({
+        code: 200,
+        data: {
+          borrow_id: parseInt(borrow_id),
+          book_id: borrow.book_id,
+          reader_id: borrow.reader_id,
+          borrow_date: borrow.borrow_date,
+          due_date: borrow.due_date,
+          return_date,
+          status: 'returned',
+          is_overdue,
+          overdue_days
+        },
+        msg: '还书成功'
+      });
+      
+    } catch (error) {
+      // 回滚事务
+      await query('ROLLBACK');
+      throw error;
+    }
+    
+  } catch (error) {
+    console.error('还书失败:', error);
+    
+    let errorMessage = '还书失败，请稍后重试';
+    if (error.code === 'ER_LOCK_WAIT_TIMEOUT') {
+      errorMessage = '系统繁忙，请稍后重试';
+    } else if (error.code === 'ER_NO_REFERENCED_ROW') {
+      errorMessage = '借阅记录或图书信息不存在';
+    }
+    
+    res.status(500).json({
+      code: 500,
+      data: null,
+      msg: errorMessage
+    });
+  }
+});
+
 // 添加路由到router对象
 router.post('/borrow', postBorrow);
-router.post('/return', postReturn);
-router.put('/return', putReturn);
+router.post('/return-old', postReturn);  // 保持旧接口兼容性
+router.put('/return', putReturn);  // 保持旧接口兼容性
 
 // 导出router和函数以便直接调用
 module.exports = router;

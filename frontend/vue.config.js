@@ -7,14 +7,14 @@ module.exports = {
     proxy: {
       // 配置API代理，解决跨域问题
       '/api': {
-        target: 'http://localhost:3001', // 后端API地址
+        target: 'http://localhost:3000', // 后端API地址
         changeOrigin: true, // 改变请求源
         pathRewrite: {
           '^/api': '/api' // 路径重写规则
         }
       },
       '/docs': {
-        target: 'http://localhost:3001', // API文档地址
+        target: 'http://localhost:3000', // API文档地址
         changeOrigin: true
       }
     }

@@ -134,6 +134,121 @@ router.get('/monthly', async (req, res) => {
 
 /**
  * @swagger
+ * /api/statistics/categories:
+ *   get:
+ *     summary: 图书分类分布统计
+ *     description: 获取图书分类分布数据，用于饼图展示
+ *     responses:
+ *       200:
+ *         description: 查询成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: 'object'
+ *               properties:
+ *                 success: { type: 'boolean', example: true }
+ *                 data:
+ *                   type: 'array'
+ *                   items:
+ *                     type: 'object'
+ *                     properties:
+ *                       category_name: { type: 'string', example: '文学' }
+ *                       book_count: { type: 'integer', example: 125 }
+ *                       percentage: { type: 'number', example: 25.5 }
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: 'object'
+ *               properties:
+ *                 success: { type: 'boolean', example: false }
+ *                 error: { type: 'string', example: '获取分类统计数据失败' }
+ */
+router.get('/categories', async (req, res) => {
+  try {
+    // 获取图书分类分布统计
+    const sql = `
+      SELECT 
+        COALESCE(bc.name, '未分类') as category_name,
+        COUNT(b.book_id) as book_count
+      FROM books b
+      LEFT JOIN book_categories bc ON b.category_id = bc.category_id
+      GROUP BY b.category_id, bc.name
+      ORDER BY book_count DESC
+    `;
+    
+    const results = await query(sql);
+    
+    // 计算总数和百分比
+    const totalBooks = results.reduce((sum, item) => sum + item.book_count, 0);
+    
+    const data = results.map(item => ({
+      category_name: item.category_name,
+      book_count: item.book_count,
+      percentage: totalBooks > 0 ? Math.round((item.book_count / totalBooks) * 100 * 10) / 10 : 0
+    }));
+    
+    res.json({
+      success: true,
+      data: data,
+      total_books: totalBooks
+    });
+    
+  } catch (error) {
+    console.error('获取图书分类统计失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '获取分类统计数据失败，请稍后重试'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/statistics/borrows/monthly:
+ *   get:
+ *     summary: 月度借阅趋势统计
+ *     description: 获取最近12个月的借阅趋势数据，用于折线图展示
+ *     parameters:
+ *       - name: months
+ *         in: query
+ *         description: 统计月份数量，默认12个月
+ *         required: false
+ *         schema: { type: 'integer', default: 12 }
+ *     responses:
+ *       200:
+ *         description: 查询成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: 'object'
+ *               properties:
+ *                 success: { type: 'boolean', example: true }
+ *                 data:
+ *                   type: 'object'
+ *                   properties:
+ *                     months: 
+ *                       type: 'array'
+ *                       items: { type: 'string', example: '2024-01' }
+ *                     borrow_counts:
+ *                       type: 'array'
+ *                       items: { type: 'integer', example: 45 }
+ *                     return_counts:
+ *                       type: 'array'
+ *                       items: { type: 'integer', example: 42 }
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: 'object'
+ *               properties:
+ *                 success: { type: 'boolean', example: false }
+ *                 error: { type: 'string', example: '获取月度趋势数据失败' }
+ */
+/**
+ * @swagger
  * /api/statistics/topBooks: 
  *   get: 
  *     summary: 热门图书统计
@@ -269,6 +384,262 @@ router.get('/topBooks', async (req, res) => {
     res.status(500).json({
       success: false,
       error: '获取热门图书数据失败，请稍后重试'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/statistics/categories:
+ *   get:
+ *     summary: 图书分类分布统计
+ *     description: 获取各分类下图书数量的分布统计，用于饼图展示
+ *     responses:
+ *       200:
+ *         description: 查询成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: 'object'
+ *               properties:
+ *                 success: { type: 'boolean', example: true }
+ *                 data:
+ *                   type: 'array'
+ *                   items:
+ *                     type: 'object'
+ *                     properties:
+ *                       category_id: { type: 'integer', example: 1 }
+ *                       category_name: { type: 'string', example: '计算机科学' }
+ *                       book_count: { type: 'integer', example: 25 }
+ *                       total_stock: { type: 'integer', example: 150 }
+ *                       available_stock: { type: 'integer', example: 120 }
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: 'object'
+ *               properties:
+ *                 success: { type: 'boolean', example: false }
+ *                 error: { type: 'string', example: '获取分类统计数据失败' }
+ */
+router.get('/categories', async (req, res) => {
+  try {
+    // 查询各分类下的图书统计信息
+    const sql = `
+      SELECT 
+        bc.category_id,
+        bc.name as category_name,
+        bc.description,
+        COALESCE(COUNT(b.book_id), 0) as book_count,
+        COALESCE(SUM(b.stock), 0) as total_stock,
+        COALESCE(SUM(b.available), 0) as available_stock
+      FROM book_categories bc
+      LEFT JOIN books b ON bc.category_id = b.category_id
+      GROUP BY bc.category_id, bc.name, bc.description
+      ORDER BY book_count DESC, bc.name
+    `;
+    
+    const results = await query(sql);
+    
+    // 计算总数用于百分比计算
+    const totalBooks = results.reduce((sum, item) => sum + parseInt(item.book_count), 0);
+    
+    // 为每个分类添加百分比信息
+    const categoriesWithPercentage = results.map(item => ({
+      category_id: item.category_id,
+      category_name: item.category_name,
+      description: item.description,
+      book_count: parseInt(item.book_count),
+      total_stock: parseInt(item.total_stock),
+      available_stock: parseInt(item.available_stock),
+      percentage: totalBooks > 0 ? ((parseInt(item.book_count) / totalBooks) * 100).toFixed(1) : '0.0'
+    }));
+    
+    res.json({
+      success: true,
+      data: categoriesWithPercentage,
+      summary: {
+        total_categories: results.length,
+        total_books: totalBooks,
+        total_stock: results.reduce((sum, item) => sum + parseInt(item.total_stock), 0),
+        available_stock: results.reduce((sum, item) => sum + parseInt(item.available_stock), 0)
+      }
+    });
+  } catch (error) {
+    console.error('获取图书分类统计失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '获取分类统计数据失败，请稍后重试',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/statistics/borrows/monthly:
+ *   get:
+ *     summary: 月度借阅趋势统计
+ *     description: 获取指定时间范围内的月度借阅趋势数据，用于折线图展示
+ *     parameters:
+ *       - name: year
+ *         in: query
+ *         description: 年份（可选，默认为当前年份）
+ *         required: false
+ *         schema: { type: 'integer', example: 2024 }
+ *       - name: months
+ *         in: query
+ *         description: 查询月份数（可选，默认为12个月）
+ *         required: false
+ *         schema: { type: 'integer', example: 6 }
+ *     responses:
+ *       200:
+ *         description: 查询成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: 'object'
+ *               properties:
+ *                 success: { type: 'boolean', example: true }
+ *                 data:
+ *                   type: 'object'
+ *                   properties:
+ *                     labels: 
+ *                       type: 'array'
+ *                       items: { type: 'string' }
+ *                       example: ['2024-01', '2024-02', '2024-03']
+ *                     borrow_counts:
+ *                       type: 'array'
+ *                       items: { type: 'integer' }
+ *                       example: [45, 38, 52]
+ *                     return_counts:
+ *                       type: 'array'
+ *                       items: { type: 'integer' }
+ *                       example: [42, 35, 48]
+ *                     overdue_counts:
+ *                       type: 'array'
+ *                       items: { type: 'integer' }
+ *                       example: [3, 3, 4]
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: 'object'
+ *               properties:
+ *                 success: { type: 'boolean', example: false }
+ *                 error: { type: 'string', example: '获取月度借阅趋势数据失败' }
+ */
+router.get('/borrows/monthly', async (req, res) => {
+  try {
+    const { year = new Date().getFullYear(), months = 12 } = req.query;
+    
+    // 参数校验
+    const yearNum = parseInt(year);
+    const monthsNum = Math.min(Math.max(parseInt(months) || 12, 1), 24); // 限制在1-24个月之间
+    
+    if (isNaN(yearNum) || yearNum < 2020 || yearNum > 2030) {
+      return res.status(400).json({
+        success: false,
+        message: '年份参数无效，应在2020-2030之间'
+      });
+    }
+    
+    // 生成查询的月份范围
+    const monthRanges = [];
+    for (let i = monthsNum - 1; i >= 0; i--) {
+      const targetDate = new Date(yearNum, new Date().getMonth() - i, 1);
+      const year = targetDate.getFullYear();
+      const month = targetDate.getMonth() + 1;
+      monthRanges.push({
+        year,
+        month,
+        label: `${year}-${month.toString().padStart(2, '0')}`
+      });
+    }
+    
+    // 查询每个月的借阅、归还、逾期统计
+    const sql = `
+      SELECT 
+        YEAR(borrow_date) as year,
+        MONTH(borrow_date) as month,
+        COUNT(*) as borrow_count,
+        SUM(CASE WHEN return_date IS NOT NULL THEN 1 ELSE 0 END) as return_count,
+        SUM(CASE 
+          WHEN return_date IS NULL AND due_date < NOW() THEN 1 
+          WHEN return_date IS NOT NULL AND return_date > due_date THEN 1
+          ELSE 0 
+        END) as overdue_count
+      FROM borrows
+      WHERE (YEAR(borrow_date) = ? AND MONTH(borrow_date) BETWEEN ? AND ?)
+         OR (YEAR(borrow_date) = ? AND MONTH(borrow_date) BETWEEN ? AND ?)
+      GROUP BY YEAR(borrow_date), MONTH(borrow_date)
+      ORDER BY year, month
+    `;
+    
+    // 构建查询参数，支持跨年查询
+    const startMonth = monthRanges[0];
+    const endMonth = monthRanges[monthRanges.length - 1];
+    
+    const queryParams = [
+      startMonth.year, startMonth.month, 12,
+      endMonth.year, 1, endMonth.month
+    ];
+    
+    const results = await query(sql, queryParams);
+    
+    // 创建结果映射
+    const resultMap = {};
+    results.forEach(row => {
+      const key = `${row.year}-${row.month.toString().padStart(2, '0')}`;
+      resultMap[key] = {
+        borrow_count: parseInt(row.borrow_count),
+        return_count: parseInt(row.return_count),
+        overdue_count: parseInt(row.overdue_count)
+      };
+    });
+    
+    // 构建完整的数据数组，补充缺失月份的数据
+    const labels = [];
+    const borrowCounts = [];
+    const returnCounts = [];
+    const overdueCounts = [];
+    
+    monthRanges.forEach(range => {
+      const data = resultMap[range.label] || {
+        borrow_count: 0,
+        return_count: 0,
+        overdue_count: 0
+      };
+      
+      labels.push(range.label);
+      borrowCounts.push(data.borrow_count);
+      returnCounts.push(data.return_count);
+      overdueCounts.push(data.overdue_count);
+    });
+    
+    res.json({
+      success: true,
+      data: {
+        labels,
+        borrow_counts: borrowCounts,
+        return_counts: returnCounts,
+        overdue_counts: overdueCounts
+      },
+      summary: {
+        total_borrows: borrowCounts.reduce((sum, count) => sum + count, 0),
+        total_returns: returnCounts.reduce((sum, count) => sum + count, 0),
+        total_overdue: overdueCounts.reduce((sum, count) => sum + count, 0),
+        period: `${labels[0]} 至 ${labels[labels.length - 1]}`
+      }
+    });
+  } catch (error) {
+    console.error('获取月度借阅趋势失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '获取月度借阅趋势数据失败，请稍后重试',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });

@@ -124,6 +124,12 @@ erDiagram
         INT category_id FK
         INT stock
         VARCHAR publisher
+        VARCHAR isbn
+        VARCHAR publish_date
+        DECIMAL price
+        TEXT description
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
     }
 
     readers {
@@ -131,6 +137,12 @@ erDiagram
         VARCHAR name
         VARCHAR student_id
         VARCHAR reader_type
+        VARCHAR phone
+        VARCHAR email
+        VARCHAR department
+        TINYINT status
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
     }
 
     borrows {
@@ -140,9 +152,52 @@ erDiagram
         DATETIME borrow_date
         DATETIME due_date
         DATETIME return_date
+        ENUM status
+        DECIMAL fine_amount
+        TEXT notes
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
     }
 ```
 
+## 六、功能实现状态跟踪
+
+### 已实现功能（基于页面截图验证）
+- ✅ 基础图书信息管理（book_management.png）
+- ✅ 基础读者信息管理（reader_management.png）
+- ✅ 基础借阅记录管理（borrow_record.png）
+- ✅ 基础搜索功能
+- ✅ 首页基础统计展示（Home.png）
+
+### 待实现功能（基于原型图差异分析）
+- ❌ 图表可视化功能（饼图、折线图、柱状图）
+- ❌ 高级搜索和筛选功能
+- ❌ 逾期提醒和还书功能
+- ❌ 批量操作功能
+- ❌ 数据导入导出功能
+- ❌ 统计分析模块
+
+### 详细差异分析文档
+详见：[模块功能差异对比表](./module-function-differences.md)
+
+## 七、下一阶段开发计划
+
+### 第1阶段：核心功能完善（1-2周）
+1. 实现还书功能
+2. 添加逾期提醒机制
+3. 优化借阅状态管理
+
+### 第2阶段：用户体验提升（2-3周）
+1. 添加首页统计图表
+2. 实现高级搜索和筛选
+3. 优化页面交互体验
+
+### 第3阶段：管理功能增强（3-4周）
+1. 批量操作功能
+2. 数据导入导出
+3. 统计分析模块
+
 ---
-版本：v1.0.0
-创建日期：2023年10月25日
+**版本**：v1.1.0  
+**创建日期**：2023年10月25日  
+**更新日期**：2024年1月 - 基于已实现功能与原型图对比更新

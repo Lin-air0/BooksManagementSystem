@@ -79,6 +79,33 @@ export const bookAPI = {
   getBooks: (params) => api.get('/books/search', { params }),
   // 获取图书详情
   getBookDetail: (bookId) => api.get(`/books/${bookId}`),
+  // 新增图书
+  addBook: (data) => api.post('/books', data),
+  // 更新图书信息
+  updateBook: (id, data) => api.put(`/books/${id}`, data),
+  // 删除图书
+  deleteBook: (id) => api.delete(`/books/${id}`),
+  // 第3阶段新增：批量删除图书
+  batchDeleteBooks: (bookIds) => {
+    console.log('API调用 - 批量删除图书:', { bookIds, type: typeof bookIds[0] });
+    return api.delete('/books/batch', { 
+      data: { book_ids: bookIds },
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+  },
+  // 第3阶段新增：批量修改分类
+  batchUpdateCategory: (bookIds, categoryId) => api.patch('/books/batch/category', { 
+    book_ids: bookIds, 
+    new_category_id: categoryId 
+  }),
+  // 第3阶段新增：图书导入
+  importBooks: (formData) => api.post('/books/import', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  }),
 };
 
 // 借阅相关API - 根据后端实际接口配置（已修正）
@@ -91,8 +118,12 @@ export const borrowAPI = {
   getCurrentBorrows: (readerId) => api.get('/borrows', { params: { reader_id: readerId, status: 'borrowed' } }),
   // 借阅图书
   borrowBook: (data) => api.post('/borrow', data),
-  // 归还图书 - 使用PUT /api/return端点（符合后端规范）
-  returnBook: (data) => api.put('/return', data),
+  // 归还图书 - 使用新的POST /api/borrows/return端点（第1阶段新增）
+  returnBook: (data) => api.post('/borrows/return', data),
+  // 归还图书（旧接口保持兼容性）
+  returnBookOld: (data) => api.put('/return', data),
+  // 获取逾期记录 - 第1阶段新增
+  getOverdueRecords: (params) => api.get('/borrows/overdue', { params }),
 };
 
 // 读者相关API - 支持登录认证
@@ -109,6 +140,12 @@ export const readerAPI = {
   updateReader: (id, data) => api.put(`/readers/${id}`, data),
   // 删除读者
   deleteReader: (id) => api.delete(`/readers/${id}`),
+  // 第3阶段新增：读者导入
+  importReaders: (formData) => api.post('/readers/import', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  }),
 };
 
 // 统计相关API - 根据后端实际接口配置（已修正）
@@ -119,6 +156,10 @@ export const statisticsAPI = {
   getPopularBooks: (limit = 10) => api.get('/statistics/topBooks', { params: { limit, period: 'month' } }),
   // 获取月度统计
   getMonthlyStats: (params) => api.get('/statistics/monthly', { params }),
+  // 第2阶段新增：获取图书分类分布统计（用于饼图）
+  getCategoriesStats: () => api.get('/statistics/categories'),
+  // 第2阶段新增：获取月度借阅趋势统计（用于折线图）
+  getBorrowTrends: (params) => api.get('/statistics/borrows/monthly', { params }),
   // 获取逾期统计 - 使用borrows接口的查询参数
   getOverdueStats: (params) => api.get('/borrows', { params: { ...params, is_overdue: true } }),
 };

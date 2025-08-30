@@ -1,11 +1,11 @@
 # 图书借阅系统 - API接口文档
 
 ## Status
-- **版本**: v2.3.0
-- **更新时间**: 2025-01-09
+- **版本**: v2.4.0
+- **更新时间**: 2025-08-30
 - **状态**: 已发布
-- **API版本**: v1.0
-- **基础URL**: `http://localhost:3000/api`
+- **API版本**: v1.1 (第1阶段功能新增)
+- **基础URL**: `http://localhost:3001/api`
 
 ## Key Findings
 - 基于Express.js框架的RESTful API设计
@@ -401,7 +401,135 @@ GET /api/statistics/topBooks?period=month&limit=10
 }
 ```
 
-### 5.2 图书归还 [PUT /api/return]
+### 5.2 新的还书功能 [POST /api/borrows/return]
+
+#### 功能描述
+第1阶段新增的还书API，简化了还书流程，只需要借阅记录ID。
+
+#### 请求参数
+| 参数 | 类型 | 必填 | 说明 | 示例 |
+|------|------|------|------|------|
+| borrow_id | number | 是 | 借阅记录ID | 1 |
+
+#### 请求示例
+```json
+{
+  "borrow_id": 1
+}
+```
+
+#### 成功响应
+```json
+{
+  "code": 200,
+  "data": {
+    "borrow_id": 1,
+    "book_id": 1,
+    "reader_id": 1,
+    "borrow_date": "2025-08-17T16:00:00.000Z",
+    "due_date": "2025-09-17T16:00:00.000Z",
+    "return_date": "2025-08-30 03:54:26",
+    "status": "returned",
+    "is_overdue": false,
+    "overdue_days": 0
+  },
+  "msg": "还书成功"
+}
+```
+
+#### 逾期归还响应
+```json
+{
+  "code": 200,
+  "data": {
+    "borrow_id": 2,
+    "book_id": 2,
+    "reader_id": 2,
+    "return_date": "2025-08-30 15:45:00",
+    "status": "returned",
+    "is_overdue": true,
+    "overdue_days": 5
+  },
+  "msg": "还书成功"
+}
+```
+
+### 5.3 逾期提醒功能 [GET /api/borrows/overdue]
+
+#### 功能描述
+第1阶段新增的逾期提醒API，获取所有逾期的借阅记录，支持分页和统计信息。
+
+#### 请求参数
+| 参数 | 类型 | 必填 | 说明 | 示例 |
+|------|------|------|------|------|
+| page | number | 否 | 页码 | 1 |
+| pageSize | number | 否 | 每页数量 | 10 |
+
+#### 请求示例
+```bash
+GET /api/borrows/overdue?page=1&pageSize=10
+```
+
+#### 成功响应
+```json
+{
+  "code": 200,
+  "data": {
+    "total": 4,
+    "list": [
+      {
+        "borrow_id": 15,
+        "reader_id": 5,
+        "reader_name": "王五",
+        "reader_email": "wangwu@example.com",
+        "book_id": 3,
+        "book_title": "Node.js开发指南",
+        "book_author": "李四",
+        "borrow_date": "2025-07-15T00:00:00.000Z",
+        "due_date": "2025-08-15T00:00:00.000Z",
+        "return_date": null,
+        "status": "overdue",
+        "overdue_days": 15,
+        "actual_status": "overdue"
+      }
+    ],
+    "stats": {
+      "total_overdue": 4,
+      "severe_overdue": 0,
+      "moderate_overdue": 2,
+      "mild_overdue": 2
+    },
+    "page": 1,
+    "pageSize": 10
+  },
+  "msg": "查询逾期记录成功"
+}
+```
+
+### 5.4 借阅记录查询增强 [GET /api/borrows]
+
+#### 功能描述
+第1阶段增强了借阅记录查询功能，支持更精确的状态筛选。
+
+#### 新增参数
+| 参数 | 类型 | 必填 | 说明 | 示例 |
+|------|------|------|------|------|
+| is_overdue | boolean | 否 | 是否仅查询逾期记录 | true |
+| status | string | 否 | 状态筛选：borrows/returned/overdue | "borrowed" |
+
+#### 请求示例
+```bash
+# 查询逾期记录
+GET /api/borrows?is_overdue=true&page=1&pageSize=10
+
+# 查询借阅中记录
+GET /api/borrows?status=borrowed&page=1&pageSize=10
+
+# 查询已归还记录
+GET /api/borrows?status=returned&page=1&pageSize=10
+```
+
+### 5.5 原有还书功能 [PUT /api/return] (兼容性保持)
 
 #### 功能描述
 处理图书归还请求，计算逾期罚款并恢复库存。

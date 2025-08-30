@@ -85,6 +85,7 @@
               <th>日期</th>
               <th>借阅量</th>
               <th>归还量</th>
+              <th>逾期量</th>
             </tr>
           </thead>
           <tbody>
@@ -92,6 +93,7 @@
               <td>{{ date }}</td>
               <td class="borrow-count">{{ reportData.borrow_counts[index] }}</td>
               <td class="borrow-count">{{ reportData.return_counts[index] }}</td>
+              <td class="overdue-count">{{ reportData.overdue_counts ? reportData.overdue_counts[index] || 0 : 0 }}</td>
             </tr>
           </tbody>
         </table>
@@ -191,18 +193,19 @@ export default {
         const apiParams = { year: this.selectedYear, month: this.selectedMonth };
         this.debugInfo += `调用月度统计API，参数: ${JSON.stringify(apiParams, null, 2)}\n`;
         
-        // 调用月度借阅统计API
-        const monthlyStats = await statisticsAPI.getMonthlyStats(apiParams);
+        // 调用月度借阅趋势统计API（使用新的API获取包含逾期数据的趋势）
+        const monthlyStats = await statisticsAPI.getBorrowTrends({ months: 12 });
         
-        this.debugInfo += `月度统计API返回: ${JSON.stringify(monthlyStats, null, 2)}\n`;
+        this.debugInfo += `月度趋势API返回: ${JSON.stringify(monthlyStats, null, 2)}\n`;
         
-        // 使用统一响应格式处理月度报表数据 - 参考Home.vue的成功模式
+        // 使用统一响应格式处理月度趋势数据
         if (monthlyStats.success && monthlyStats.data) {
           const result = monthlyStats.data;
           this.reportData = {
-            dates: result.dates || [],
+            dates: result.labels || [],
             borrow_counts: result.borrow_counts || [],
-            return_counts: result.return_counts || []
+            return_counts: result.return_counts || [],
+            overdue_counts: result.overdue_counts || [] // 新增：逾期数据
           };
           // 更新图表
           this.updateMonthlyChart();
@@ -278,7 +281,7 @@ export default {
             }
           },
           legend: {
-            data: ['借阅量', '归还量']
+            data: ['借阅量', '归还量', '逾期量']
           },
           grid: {
             left: '3%',
@@ -334,6 +337,20 @@ export default {
               },
               itemStyle: {
                 color: '#10b981'
+              }
+            },
+            {
+              name: '逾期量',
+              type: 'line',
+              emphasis: {
+                focus: 'series'
+              },
+              data: this.reportData.overdue_counts || [],
+              lineStyle: {
+                color: '#ef4444'
+              },
+              itemStyle: {
+                color: '#ef4444'
               }
             }
           ]
@@ -436,6 +453,9 @@ export default {
             },
             {
               data: this.reportData.return_counts
+            },
+            {
+              data: this.reportData.overdue_counts || []
             }
           ]
         });
@@ -715,6 +735,12 @@ button:disabled {
 .borrow-count {
   font-weight: 600;
   color: #1e40af;
+}
+
+/* 逾期数量样式 */
+.overdue-count {
+  font-weight: 600;
+  color: #ef4444;
 }
 
 /* 图表容器样式 */

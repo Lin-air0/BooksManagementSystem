@@ -10,9 +10,9 @@
         <label>状态筛选：</label>
         <select v-model="filterStatus" @change="filterRecords" class="filter-select" :disabled="isLoading">
           <option value="all">全部</option>
-          <option value="not_returned">未还</option>
+          <option value="borrowed">借阅中</option>
+          <option value="returned">已归还</option>
           <option value="overdue">逾期</option>
-          <option value="returned">已还</option>
         </select>
       </div>
     </div>
@@ -112,29 +112,26 @@
       </div>
     </div>
 
-    <!-- 读者ID输入弹窗 -->
-    <div v-if="showReaderIdInput" class="modal-overlay" @click.self="closeReaderIdInput">
+    <!-- 还书确认弹窗 -->
+    <div v-if="showReturnConfirm" class="modal-overlay" @click.self="closeReturnConfirm">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>确认读者身份</h3>
+          <h3>确认还书</h3>
         </div>
         <div class="modal-body">
-          <div class="form-group">
-            <label for="readerIdInput">请输入读者ID：</label>
-            <input
-              id="readerIdInput"
-              type="text"
-              v-model="currentReaderId"
-              class="form-control"
-              placeholder="读者ID"
-              @keyup.enter="confirmReaderIdInput"
-              autofocus
-            />
+          <p>是否确认归还该图书？</p>
+          <div class="book-info" v-if="currentBorrowRecord">
+            <p><strong>图书名称：</strong>{{ currentBorrowRecord.bookName }}</p>
+            <p><strong>读者姓名：</strong>{{ currentBorrowRecord.readerName }}</p>
+            <p><strong>应还日期：</strong>{{ formatDateTime(currentBorrowRecord.dueDate) }}</p>
+            <p v-if="currentBorrowRecord.isOverdue" class="overdue-warning">
+              <strong>逾期天数：</strong>{{ currentBorrowRecord.overdueDays }} 天
+            </p>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" @click="closeReaderIdInput">取消</button>
-          <button class="btn btn-primary" @click="confirmReaderIdInput" :disabled="!currentReaderId">确定</button>
+          <button class="btn btn-secondary" @click="closeReturnConfirm">取消</button>
+          <button class="btn btn-primary" @click="confirmReturn" :disabled="isSubmitting">确认还书</button>
         </div>
       </div>
     </div>
@@ -152,16 +149,16 @@ export default {
   name: 'BorrowRecord',
   data() {
     return {
-      filterStatus: 'all', // 筛选状态：all, not_returned, overdue, returned
+      filterStatus: 'all', // 筛选状态：all, borrowed, returned, overdue
       borrowRecords: [],    // 借阅记录列表
       isLoading: false,     // 加载状态
       isSubmitting: false,  // 提交状态（用于还书操作）
       currentPage: 1,       // 当前页码
       pageSize: 10,         // 每页显示数量
       total: 0,             // 总记录数
-      showReaderIdInput: false, // 是否显示读者ID输入弹窗
+      showReturnConfirm: false, // 是否显示还书确认弹窗
       currentBorrowId: '',       // 当前操作的借阅ID
-      currentReaderId: ''        // 当前输入的读者ID
+      currentBorrowRecord: null  // 当前操作的借阅记录
     };
   },
   mounted() {
@@ -230,14 +227,11 @@ export default {
     setFilterParams(params) {
       if (this.filterStatus !== 'all') {
         if (this.filterStatus === 'overdue') {
-          // 逾期记录筛选
-          params.status = 'overdue';
-        } else if (this.filterStatus === 'not_returned') {
-          // 未还记录筛选（包含逾期和非逾期）
-          params.status = 'borrowed';
-        } else if (this.filterStatus === 'returned') {
-          // 已还记录筛选
-          params.status = 'returned';
+          // 逾期记录筛选 - 使用is_overdue参数
+          params.is_overdue = true;
+        } else {
+          // 其他状态直接使用status参数
+          params.status = this.filterStatus;
         }
       }
     },
@@ -278,6 +272,9 @@ export default {
      * @returns {Object} - 前端标准格式记录
      */
     mapBorrowRecord(record) {
+      // 获取实际状态（优先使用actual_status，否则使用status）
+      const actualStatus = record.actual_status || record.status || 'borrowed';
+      
       return {
         id: record.borrow_id || record.id || record.borrowId,
         bookName: record.book_title || record.bookTitle,
@@ -286,8 +283,8 @@ export default {
         dueDate: record.due_date || record.dueDate,
         returnDate: record.return_date || record.returnDate,
         status: record.status || 'borrowed',
-        actualStatus: record.status || 'borrowed',
-        isOverdue: record.status === 'overdue',
+        actualStatus: actualStatus,
+        isOverdue: actualStatus === 'overdue' || record.is_overdue === 1,
         overdueDays: record.overdue_days || record.overdueDays || 0
       };
     },
@@ -423,47 +420,52 @@ export default {
     },
 
     /**
-     * 还书操作 - 打开读者ID输入弹窗
+     * 还书操作 - 打开还书确认弹窗
      * @param {string} borrowId - 借阅记录ID
      */
     returnBook(borrowId) {
       this.currentBorrowId = borrowId;
-      this.currentReaderId = '';
-      this.showReaderIdInput = true;
+      // 查找当前借阅记录
+      this.currentBorrowRecord = this.borrowRecords.find(record => record.id == borrowId);
+      this.showReturnConfirm = true;
     },
 
     /**
-     * 关闭读者ID输入弹窗
+     * 关闭还书确认弹窗
      */
-    closeReaderIdInput() {
-      this.showReaderIdInput = false;
+    closeReturnConfirm() {
+      this.showReturnConfirm = false;
       this.currentBorrowId = '';
-      this.currentReaderId = '';
+      this.currentBorrowRecord = null;
     },
 
     /**
-     * 确认读者ID输入并执行还书操作
+     * 确认还书操作
      * @async
      * @returns {Promise<void>}
      */
-    async confirmReaderIdInput() {
-      if (!this.currentReaderId) {
-        alert('请输入读者ID');
+    async confirmReturn() {
+      if (!this.currentBorrowId) {
+        alert('借阅记录ID不能为空');
         return;
       }
 
       this.isSubmitting = true;
       try {
-        // 调用还书API，需要传递borrow_id和reader_id
-        await borrowAPI.returnBook({
-          borrow_id: this.currentBorrowId,
-          reader_id: this.currentReaderId
+        // 调用新的还书API，只需要传递borrow_id
+        const response = await borrowAPI.returnBook({
+          borrow_id: this.currentBorrowId
         });
-        alert('还书成功！');
-        // 重新获取借阅记录列表
-        this.fetchBorrowRecords();
-        // 关闭弹窗
-        this.closeReaderIdInput();
+        
+        if (response.code === 200) {
+          alert('还书成功！');
+          // 重新获取借阅记录列表
+          this.fetchBorrowRecords();
+          // 关闭弹窗
+          this.closeReturnConfirm();
+        } else {
+          alert(response.msg || '还书失败');
+        }
       } catch (error) {
         console.error('还书失败:', error);
         alert(error.message || '还书失败，请稍后重试');
@@ -810,5 +812,23 @@ export default {
 
 .btn-secondary:hover {
   background-color: #d1d5db;
+}
+
+/* 图书信息显示区域 */
+.book-info {
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 4px;
+  margin-top: 15px;
+}
+
+.book-info p {
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.overdue-warning {
+  color: #ef4444;
+  font-weight: 500;
 }
 </style>

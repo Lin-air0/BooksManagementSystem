@@ -2,6 +2,9 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/db.js'); // 使用数据库配置文件中的连接池
+const { uploadExcel, handleUploadError, cleanupTempFile } = require('../middleware/fileUpload');
+const { parseExcelFile, validateExcelData, convertExcelToObjects } = require('../utils/excelHelper');
+const path = require('path');
 
 // 查询函数
 async function query(sql, params = []) {
@@ -706,5 +709,328 @@ router.get('/:id', async (req, res) => {
     });
   }
 });
+
+/**
+ * @swagger
+ * /api/readers/import:
+ *   post:
+ *     summary: 批量导入读者数据
+ *     description: 从 Excel 文件中导入读者数据，支持批量插入和数据验证
+ *     consumes:
+ *       - multipart/form-data
+ *     parameters:
+ *       - name: excel
+ *         in: formData
+ *         description: 要上传的 Excel 文件 (.xls 或 .xlsx)
+ *         required: true
+ *         type: file
+ *     responses:
+ *       200:
+ *         description: 导入成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: 'object'
+ *               properties:
+ *                 code: { type: 'integer', example: 200 }
+ *                 data:
+ *                   type: 'object'
+ *                   properties:
+ *                     imported_count: { type: 'integer', example: 12 }
+ *                     failed_items: 
+ *                       type: 'array'
+ *                       items:
+ *                         type: 'object'
+ *                         properties:
+ *                           row: { type: 'integer', example: 3 }
+ *                           data: { type: 'object' }
+ *                           reason: { type: 'string', example: '学号已存在' }
+ *                     details:
+ *                       type: 'object'
+ *                       properties:
+ *                         total_rows: { type: 'integer', example: 15 }
+ *                         successful: { type: 'integer', example: 12 }
+ *                         failed: { type: 'integer', example: 3 }
+ *                 msg: { type: 'string', example: '导入成功' }
+ *       400:
+ *         description: 参数错误或数据格式错误
+ *       500:
+ *         description: 服务器错误
+ */
+router.post('/import', uploadExcel, handleUploadError, async (req, res) => {
+  let tempFilePath = null;
+  
+  try {
+    // 检查文件是否上传
+    if (!req.file) {
+      return res.status(400).json({
+        code: 400,
+        data: null,
+        msg: '请上传 Excel 文件'
+      });
+    }
+    
+    tempFilePath = req.file.path;
+    console.log(`开始处理读者导入文件: ${req.file.originalname}`);
+    
+    // 解析 Excel 文件
+    const excelData = parseExcelFile(tempFilePath);
+    
+    // 验证数据格式
+    const requiredHeaders = ['姓名', '学号', '邮箱', '电话'];
+    const validation = validateExcelData(excelData, requiredHeaders);
+    
+    if (!validation.isValid) {
+      return res.status(400).json({
+        code: 400,
+        data: {
+          errors: validation.errors,
+          warnings: validation.warnings
+        },
+        msg: '数据格式验证失败'
+      });
+    }
+    
+    // 转换为对象数组
+    const fieldMapping = {
+      '姓名': 'name',
+      '学号': 'student_id',
+      '邮箱': 'email',
+      '电话': 'phone',
+      '类型': 'type',
+      '地址': 'address'
+    };
+    
+    const readerObjects = convertExcelToObjects(excelData, fieldMapping);
+    
+    if (readerObjects.length === 0) {
+      return res.status(400).json({
+        code: 400,
+        data: null,
+        msg: '没有找到有效的读者数据'
+      });
+    }
+    
+    console.log(`解析到 ${readerObjects.length} 条读者数据，开始批量导入`);
+    
+    // 开始批量导入数据库操作
+    const connection = await pool.getConnection();
+    
+    try {
+      await connection.beginTransaction();
+      
+      const results = {
+        imported_count: 0,
+        failed_items: [],
+        details: {
+          total_rows: readerObjects.length,
+          successful: 0,
+          failed: 0
+        }
+      };
+      
+      // 逐个处理每条读者数据
+      for (const readerData of readerObjects) {
+        try {
+          // 数据验证
+          const validationResult = validateReaderData(readerData);
+          
+          if (!validationResult.isValid) {
+            results.failed_items.push({
+              row: readerData._rowIndex,
+              data: readerData,
+              reason: validationResult.errors.join(', ')
+            });
+            results.details.failed++;
+            continue;
+          }
+          
+          // 检查学号唤一性
+          const existingReaderSql = 'SELECT reader_id FROM readers WHERE student_id = ?';
+          const [existingReaders] = await connection.execute(existingReaderSql, [readerData.student_id]);
+          
+          if (existingReaders.length > 0) {
+            results.failed_items.push({
+              row: readerData._rowIndex,
+              data: readerData,
+              reason: `学号 '${readerData.student_id}' 已存在`
+            });
+            results.details.failed++;
+            continue;
+          }
+          
+          // 检查邮箱唤一性
+          const existingEmailSql = 'SELECT reader_id FROM readers WHERE email = ?';
+          const [existingEmails] = await connection.execute(existingEmailSql, [readerData.email]);
+          
+          if (existingEmails.length > 0) {
+            results.failed_items.push({
+              row: readerData._rowIndex,
+              data: readerData,
+              reason: `邮箱 '${readerData.email}' 已存在`
+            });
+            results.details.failed++;
+            continue;
+          }
+          
+          // 清理和格式化数据
+          const cleanData = cleanReaderData(readerData);
+          
+          // 插入数据库
+          const insertSql = `
+            INSERT INTO readers (name, student_id, email, phone, type, address, registration_date)
+            VALUES (?, ?, ?, ?, ?, ?, NOW())
+          `;
+          
+          const values = [
+            cleanData.name,
+            cleanData.student_id,
+            cleanData.email,
+            cleanData.phone,
+            cleanData.type,
+            cleanData.address
+          ];
+          
+          await connection.execute(insertSql, values);
+          
+          results.imported_count++;
+          results.details.successful++;
+          
+        } catch (error) {
+          console.error(`导入第${readerData._rowIndex}行失败:`, error);
+          
+          let errorMessage = `数据库操作失败: ${error.message}`;
+          
+          // 处理具体错误类型
+          if (error.code === 'ER_DUP_ENTRY') {
+            if (error.sqlMessage && error.sqlMessage.includes('student_id')) {
+              errorMessage = `学号 '${readerData.student_id}' 已存在`;
+            } else if (error.sqlMessage && error.sqlMessage.includes('email')) {
+              errorMessage = `邮箱 '${readerData.email}' 已存在`;
+            } else {
+              errorMessage = '数据已存在，跳过重复数据';
+            }
+          }
+          
+          results.failed_items.push({
+            row: readerData._rowIndex,
+            data: readerData,
+            reason: errorMessage
+          });
+          results.details.failed++;
+        }
+      }
+      
+      await connection.commit();
+      
+      // 返回结果
+      const message = results.failed_items.length === 0 
+        ? `成功导入 ${results.imported_count} 条读者数据`
+        : `导入完成：成功 ${results.imported_count} 条，失败 ${results.failed_items.length} 条`;
+      
+      console.log(`读者导入完成: 成功${results.imported_count}条，失败${results.details.failed}条`);
+      
+      res.json({
+        code: 200,
+        data: results,
+        msg: message
+      });
+      
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+    
+  } catch (error) {
+    console.error('读者导入失败:', error);
+    res.status(500).json({
+      code: 500,
+      data: null,
+      msg: `导入失败: ${error.message}`
+    });
+  } finally {
+    // 清理临时文件
+    if (tempFilePath) {
+      cleanupTempFile(tempFilePath);
+    }
+  }
+});
+
+/**
+ * 验证读者数据
+ */
+function validateReaderData(readerData) {
+  const result = {
+    isValid: true,
+    errors: []
+  };
+  
+  // 检查必填字段
+  if (!readerData.name || readerData.name.trim() === '') {
+    result.isValid = false;
+    result.errors.push('姓名不能为空');
+  }
+  
+  if (!readerData.student_id || readerData.student_id.trim() === '') {
+    result.isValid = false;
+    result.errors.push('学号不能为空');
+  }
+  
+  if (!readerData.email || readerData.email.trim() === '') {
+    result.isValid = false;
+    result.errors.push('邮箱不能为空');
+  } else {
+    // 验证邮箱格式
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(readerData.email.trim())) {
+      result.isValid = false;
+      result.errors.push('邮箱格式不正确');
+    }
+  }
+  
+  if (!readerData.phone || readerData.phone.trim() === '') {
+    result.isValid = false;
+    result.errors.push('电话不能为空');
+  } else {
+    // 验证电话格式（中国手机号）
+    const phoneRegex = /^1[3-9]\d{9}$/;
+    if (!phoneRegex.test(readerData.phone.trim())) {
+      result.isValid = false;
+      result.errors.push('电话格式不正确（应为11位中国手机号）');
+    }
+  }
+  
+  // 验证读者类型
+  if (readerData.type && readerData.type.trim() !== '') {
+    const validTypes = ['学生', '教师', '工作人员', '其他'];
+    if (!validTypes.includes(readerData.type.trim())) {
+      result.isValid = false;
+      result.errors.push(`读者类型只能是: ${validTypes.join(', ')}`);
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * 清理和格式化读者数据
+ */
+function cleanReaderData(readerData) {
+  const cleaned = {};
+  
+  // 必填字段
+  cleaned.name = readerData.name.trim();
+  cleaned.student_id = readerData.student_id.trim();
+  cleaned.email = readerData.email.trim().toLowerCase();
+  cleaned.phone = readerData.phone.trim();
+  
+  // 可选字段
+  cleaned.type = readerData.type ? readerData.type.trim() : '学生'; // 默认为学生
+  cleaned.address = readerData.address ? readerData.address.trim() : null;
+  
+  return cleaned;
+}
 
 module.exports = router;
