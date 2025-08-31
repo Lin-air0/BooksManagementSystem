@@ -224,6 +224,11 @@ export const statisticsAPI = {
     });
   },
   
+  // 第4阶段第2天新增：分类借阅统计API
+  getCategoryBorrowStats: () => {
+    return api.get('/statistics/categories/borrows');
+  },
+  
   // 第4阶段第2天新增：借阅趋势分析API（支持多种时间范围）
   getBorrowTrend: (params = {}) => {
     const { range = 'month', count = 12, start_date, end_date } = params;

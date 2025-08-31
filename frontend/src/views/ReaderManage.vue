@@ -43,10 +43,10 @@
             class="w-full px-3 py-2 border border-borderMedium rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
           >
             <option value="">全部类型</option>
-            <option value="学生">学生</option>
-            <option value="教师">教师</option>
-            <option value="职工">职工</option>
-            <option value="其他">其他</option>
+            <option value="student">学生</option>
+            <option value="teacher">教师</option>
+            <option value="admin">职工</option>
+            <option value="other">其他</option>
           </select>
         </div>
         <div>
@@ -233,9 +233,10 @@
             <div class="form-group">
               <label>类型</label>
               <select v-model="newReader.type">
-                <option value="学生">学生</option>
-                <option value="教师">教师</option>
-                <option value="普通读者">普通读者</option>
+                <option value="student">学生</option>
+                <option value="teacher">教师</option>
+                <option value="admin">职工</option>
+                <option value="other">其他</option>
               </select>
             </div>
           </div>
@@ -270,9 +271,10 @@
             <div class="form-group">
               <label>类型</label>
               <select v-model="editingReader.type">
-                <option value="学生">学生</option>
-                <option value="教师">教师</option>
-                <option value="普通读者">普通读者</option>
+                <option value="student">学生</option>
+                <option value="teacher">教师</option>
+                <option value="admin">职工</option>
+                <option value="other">其他</option>
               </select>
             </div>
           </div>
@@ -420,12 +422,12 @@ export default {
       newReader: {
         name: '',
         student_id: '',
-        type: '学生'
+        type: 'student'
       },
       editingReader: {
         name: '',
         student_id: '',
-        type: '学生'
+        type: 'student'
       },
       // 分页相关属性
       currentPage: 1,
@@ -944,14 +946,14 @@ export default {
      */
     getTypeText(type) {
       const typeMap = {
+        'student': '学生',
+        'teacher': '教师',
+        'admin': '职工',
+        'other': '其他',
         '学生': '学生',
         '教师': '教师',
         '职工': '职工',
-        '普通读者': '其他',
-        'student': '学生',
-        'teacher': '教师',
-        'staff': '职工',
-        'other': '其他'
+        '普通读者': '其他'
       };
       return typeMap[type] || '未知';
     },

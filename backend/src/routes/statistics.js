@@ -364,6 +364,80 @@ router.get('/categories', async (req, res) => {
 
 /**
  * @swagger
+ * /api/statistics/categories/borrows:
+ *   get:
+ *     summary: 分类借阅统计
+ *     description: 获取各分类下图书的借阅次数统计
+ *     responses:
+ *       200:
+ *         description: 查询成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: 'object'
+ *               properties:
+ *                 code: { type: 'integer', example: 200 }
+ *                 data:
+ *                   type: 'array'
+ *                   items:
+ *                     type: 'object'
+ *                     properties:
+ *                       category_id: { type: 'integer', example: 1 }
+ *                       category_name: { type: 'string', example: '计算机科学' }
+ *                       borrow_count: { type: 'integer', example: 125 }
+ *                 msg: { type: 'string', example: '查询成功' }
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: 'object'
+ *               properties:
+ *                 code: { type: 'integer', example: 500 }
+ *                 data: { type: 'null' }
+ *                 msg: { type: 'string', example: '获取分类借阅统计失败' }
+ */
+router.get('/categories/borrows', async (req, res) => {
+  try {
+    // 查询各分类下的图书借阅统计信息
+    const sql = `
+      SELECT 
+        bc.category_id,
+        bc.name as category_name,
+        COALESCE(COUNT(br.borrow_id), 0) as borrow_count
+      FROM book_categories bc
+      LEFT JOIN books b ON bc.category_id = b.category_id
+      LEFT JOIN borrows br ON b.book_id = br.book_id AND br.status IN ('borrowed', 'returned', 'overdue')
+      GROUP BY bc.category_id, bc.name
+      ORDER BY borrow_count DESC, bc.name
+    `;
+    
+    const results = await query(sql);
+    
+    // 处理结果数据
+    const categoryBorrowStats = results.map(item => ({
+      category_id: item.category_id,
+      category_name: item.category_name,
+      borrow_count: parseInt(item.borrow_count)
+    }));
+    
+    res.json({
+      code: 200,
+      data: categoryBorrowStats,
+      msg: '查询成功'
+    });
+  } catch (error) {
+    console.error('获取分类借阅统计失败:', error);
+    res.status(500).json({
+      code: 500,
+      data: [],
+      msg: '获取分类借阅统计失败，请稍后重试'
+    });
+  }
+});
+
+/**
+ * @swagger
  * /api/statistics/borrows/monthly:
  *   get:
  *     summary: 月度借阅趋势统计
@@ -811,10 +885,26 @@ router.get('/readers/borrows', async (req, res) => {
       const borrowCount = borrowResult[0]?.borrow_count || 0;
       totalBorrows += borrowCount;
       
+      // 修复：正确处理所有读者类型
+      let typeName = '其他';
+      switch (readerType.reader_type) {
+        case 'student':
+          typeName = '学生';
+          break;
+        case 'teacher':
+          typeName = '教师';
+          break;
+        case 'admin':
+        case 'staff':  // 兼容旧数据中的staff类型
+          typeName = '职工';
+          break;
+        default:
+          typeName = readerType.reader_type;
+      }
+      
       analysisResults.push({
         reader_type: readerType.reader_type,
-        type_name: readerType.reader_type === 'student' ? '学生' : 
-                  readerType.reader_type === 'teacher' ? '教师' : '其他',
+        type_name: typeName,
         borrow_count: borrowCount,
         reader_count: readerType.reader_count,
         avg_borrows_per_reader: readerType.reader_count > 0 ? 

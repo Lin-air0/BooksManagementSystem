@@ -191,7 +191,8 @@ export default {
       },
       
       // 图表数据
-      categoryData: [], // 分类借阅统计数据
+      categoryData: [], // 分类图书数量数据
+      categoryBorrowData: [], // 分类借阅统计数据
       monthlyTrendData: [], // 月度借阅趋势数据
       readerTypeData: [], // 读者类型分布数据
       popularBooksData: [], // 热门图书数据
@@ -238,19 +239,26 @@ export default {
         // 并行加载所有统计数据以提高性能
         const [
           categoryStats,
+          categoryBorrowStats, // 新增：分类借阅统计
           monthlyStats,
           readerStats,
           popularBooksStats
         ] = await Promise.all([
           statisticsAPI.getCategoriesStats(),
+          statisticsAPI.getCategoryBorrowStats(), // 新增：获取分类借阅统计
           statisticsAPI.getBorrowTrendAnalysis({ months: 6 }),
           statisticsAPI.getReaderBorrowAnalysis(),
           statisticsAPI.getPopularBooksRanking({ limit: 10 })
         ]);
         
-        // 处理分类统计数据
+        // 处理分类统计数据（图书数量）
         if ((categoryStats.code === 0 || categoryStats.code === 200) && categoryStats.data) {
           this.categoryData = Array.isArray(categoryStats.data) ? categoryStats.data : [];
+        }
+        
+        // 处理分类借阅统计数据
+        if ((categoryBorrowStats.code === 0 || categoryBorrowStats.code === 200) && categoryBorrowStats.data) {
+          this.categoryBorrowData = Array.isArray(categoryBorrowStats.data) ? categoryBorrowStats.data : [];
         }
         
         // 处理月度趋势数据 - 修复数据格式问题
@@ -294,7 +302,7 @@ export default {
         await this.fetchSummaryStats();
       } catch (error) {
         console.error('初始化统计数据失败:', error);
-        this.$message && this.$message.error('初始化统计数据失败: ' + error.message);
+        alert('初始化统计数据失败: ' + error.message);
       } finally {
         this.isLoading = false;
       }
@@ -399,12 +407,65 @@ export default {
     },
     
     /**
+     * 强制初始化图表（当重试次数用完时调用）
+     */
+    forceInitChart(container, chartType) {
+      try {
+        // 销毁现有实例
+        switch (chartType) {
+          case 'category':
+            if (this.categoryChart) {
+              this.categoryChart.dispose();
+              this.categoryChart = null;
+            }
+            break;
+          case 'monthly':
+            if (this.monthlyTrendChart) {
+              this.monthlyTrendChart.dispose();
+              this.monthlyTrendChart = null;
+            }
+            break;
+          case 'reader':
+            if (this.readerTypeChart) {
+              this.readerTypeChart.dispose();
+              this.readerTypeChart = null;
+            }
+            break;
+          case 'topBooks':
+            if (this.topBooksChart) {
+              this.topBooksChart.dispose();
+              this.topBooksChart = null;
+            }
+            break;
+        }
+        
+        // 重新初始化
+        switch (chartType) {
+          case 'category':
+            this.initCategoryChart();
+            break;
+          case 'monthly':
+            this.initMonthlyTrendChart();
+            break;
+          case 'reader':
+            this.initReaderTypeChart();
+            break;
+          case 'topBooks':
+            this.initTopBooksChart();
+            break;
+        }
+      } catch (error) {
+        console.error(`强制初始化${chartType}图表失败:`, error);
+      }
+    },
+    
+    /**
      * 初始化分类借阅统计图表
      */
     initCategoryChart() {
       try {
         // 确保DOM元素已经挂载并且有数据
-        if (this.$refs.categoryChart && this.categoryData && this.categoryData.length > 0) {
+        if (this.$refs.categoryChart && this.categoryBorrowData && this.categoryBorrowData.length > 0) {
           // 使用document.getElementById方式获取容器
           const container = document.getElementById('categoryChart');
           if (!container) {
@@ -444,11 +505,11 @@ export default {
           // 初始化图表
           this.categoryChart = echarts.init(container);
           
-          // 准备数据 - 添加默认值处理
-          const categories = this.categoryData.map(item => item.category_name || item.name || '未知分类');
-          const borrowCounts = this.categoryData.map(item => item.book_count || item.count || 0);
+          // 准备数据 - 使用分类借阅统计数据
+          const categories = this.categoryBorrowData.map(item => item.category_name || '未知分类');
+          const borrowCounts = this.categoryBorrowData.map(item => item.borrow_count || 0);
           
-          // 配置图表选项
+          // 配置图表选项 - 优化版
           const option = {
             title: {
               text: '分类借阅统计',
@@ -456,19 +517,33 @@ export default {
               top: 10,
               textStyle: {
                 color: '#333',
-                fontSize: 16
+                fontSize: 16,
+                fontWeight: 'normal'
               }
             },
             tooltip: {
               trigger: 'axis',
               axisPointer: {
                 type: 'shadow'
+              },
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              borderColor: '#ccc',
+              borderWidth: 1,
+              padding: 10,
+              textStyle: {
+                color: '#333',
+                fontSize: 12
+              },
+              extraCssText: 'box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);',
+              formatter: function(params) {
+                const param = params[0];
+                return `${param.name}<br/>${param.seriesName}: ${param.value}次`;
               }
             },
             grid: {
               left: '3%',
               right: '4%',
-              bottom: '3%',
+              bottom: '20%', // 增加底部边距以容纳标签
               top: 60,
               containLabel: true
             },
@@ -476,14 +551,90 @@ export default {
               {
                 type: 'category',
                 data: categories,
+                axisLine: {
+                  lineStyle: {
+                    color: '#ddd'
+                  }
+                },
                 axisTick: {
-                  alignWithLabel: true
+                  alignWithLabel: true,
+                  show: false
+                },
+                axisLabel: {
+                  interval: 0, // 显示所有标签
+                  rotate: 45, // 标签旋转45度防止重叠
+                  margin: 20,
+                  fontSize: 11,
+                  color: '#666',
+                  formatter: function(value) {
+                    // 如果标签文字过长，进行截断处理
+                    if (value && value.length > 8) {
+                      return value.substring(0, 8) + '...';
+                    }
+                    return value;
+                  }
                 }
               }
             ],
             yAxis: [
               {
-                type: 'value'
+                type: 'value',
+                name: '借阅次数',
+                nameLocation: 'middle',
+                nameGap: 40,
+                nameTextStyle: {
+                  fontSize: 12,
+                  color: '#666'
+                },
+                axisLine: {
+                  lineStyle: {
+                    color: '#ddd'
+                  }
+                },
+                axisTick: {
+                  show: false
+                },
+                axisLabel: {
+                  fontSize: 11,
+                  color: '#666'
+                },
+                splitLine: {
+                  lineStyle: {
+                    type: 'dashed',
+                    color: '#eee'
+                  }
+                }
+              }
+            ],
+            // 添加数据缩放功能，当分类较多时可以缩放查看
+            dataZoom: [
+              {
+                type: 'inside',
+                start: 0,
+                end: 100,
+                zoomOnMouseWheel: 'ctrl'
+              },
+              {
+                type: 'slider',
+                start: 0,
+                end: 100,
+                bottom: 10,
+                height: 15,
+                borderColor: '#ddd',
+                textStyle: {
+                  fontSize: 10
+                },
+                handleStyle: {
+                  color: '#409eff'
+                },
+                dataBackground: {
+                  lineStyle: {
+                    color: '#ddd'
+                  },
+                  areaStyle: {
+                    color: '#f5f5f5'
+                  }
+                }
               }
             ],
             series: [
@@ -497,7 +648,8 @@ export default {
                     { offset: 0, color: '#83bff6' },
                     { offset: 0.5, color: '#188df0' },
                     { offset: 1, color: '#188df0' }
-                  ])
+                  ]),
+                  borderRadius: [4, 4, 0, 0]
                 },
                 emphasis: {
                   itemStyle: {
@@ -568,43 +720,190 @@ export default {
           const borrowCounts = this.monthlyTrendData.borrow_counts || [];
           const returnCounts = this.monthlyTrendData.return_counts || [];
           
-          // 配置图表选项
+          // 配置图表选项 - 优化版
           const option = {
+            title: {
+              text: '月度借阅趋势',
+              left: 'center',
+              top: 10,
+              textStyle: {
+                color: '#333',
+                fontSize: 16,
+                fontWeight: 'normal'
+              }
+            },
             tooltip: {
-              trigger: 'axis'
+              trigger: 'axis',
+              axisPointer: {
+                type: 'line',
+                lineStyle: {
+                  color: '#6a7985',
+                  width: 1
+                }
+              },
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              borderColor: '#ccc',
+              borderWidth: 1,
+              padding: 10,
+              textStyle: {
+                color: '#333',
+                fontSize: 12
+              },
+              extraCssText: 'box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);'
             },
             legend: {
-              data: ['借阅量', '归还量']
+              data: ['借阅量', '归还量'],
+              top: 40,
+              itemWidth: 12,
+              itemHeight: 12,
+              itemGap: 20,
+              textStyle: {
+                fontSize: 12,
+                color: '#666'
+              }
             },
             grid: {
               left: '3%',
               right: '4%',
-              bottom: '3%',
+              bottom: '20%', // 增加底部边距以容纳标签
+              top: 70,
               containLabel: true
             },
             xAxis: {
               type: 'category',
               boundaryGap: false,
-              data: months
+              data: months,
+              axisLine: {
+                lineStyle: {
+                  color: '#ddd'
+                }
+              },
+              axisTick: {
+                show: false
+              },
+              axisLabel: {
+                interval: 0, // 显示所有标签
+                rotate: 45, // 标签旋转45度防止重叠
+                margin: 20,
+                fontSize: 11,
+                color: '#666',
+                formatter: function(value) {
+                  // 如果标签文字过长，进行截断处理
+                  if (value && value.length > 10) {
+                    return value.substring(0, 10) + '...';
+                  }
+                  return value;
+                }
+              }
             },
             yAxis: {
-              type: 'value'
+              type: 'value',
+              name: '数量',
+              nameLocation: 'middle',
+              nameGap: 40,
+              nameTextStyle: {
+                fontSize: 12,
+                color: '#666'
+              },
+              axisLine: {
+                lineStyle: {
+                  color: '#ddd'
+                }
+              },
+              axisTick: {
+                show: false
+              },
+              axisLabel: {
+                fontSize: 11,
+                color: '#666'
+              },
+              splitLine: {
+                lineStyle: {
+                  type: 'dashed',
+                  color: '#eee'
+                }
+              }
             },
+            // 添加数据缩放功能，当数据点较多时可以缩放查看
+            dataZoom: [
+              {
+                type: 'inside',
+                start: 0,
+                end: 100,
+                zoomOnMouseWheel: 'ctrl'
+              },
+              {
+                type: 'slider',
+                start: 0,
+                end: 100,
+                bottom: 10,
+                height: 15,
+                borderColor: '#ddd',
+                textStyle: {
+                  fontSize: 10
+                },
+                handleStyle: {
+                  color: '#409eff'
+                },
+                dataBackground: {
+                  lineStyle: {
+                    color: '#ddd'
+                  },
+                  areaStyle: {
+                    color: '#f5f5f5'
+                  }
+                }
+              }
+            ],
             series: [
               {
                 name: '借阅量',
                 type: 'line',
                 data: borrowCounts,
-                itemStyle: {
-                  color: '#3b82f6'
+                smooth: true, // 平滑曲线
+                symbol: 'circle',
+                symbolSize: 5,
+                showSymbol: false, // 默认不显示符号，hover时显示
+                lineStyle: {
+                  color: '#409eff',
+                  width: 3
+                },
+                areaStyle: {
+                  color: {
+                    type: 'linear',
+                    x: 0, y: 0, x2: 0, y2: 1,
+                    colorStops: [
+                      { offset: 0, color: 'rgba(64, 158, 255, 0.3)' },
+                      { offset: 1, color: 'rgba(64, 158, 255, 0.05)' }
+                    ]
+                  }
+                },
+                emphasis: {
+                  focus: 'series',
+                  lineStyle: {
+                    width: 4
+                  },
+                  symbolSize: 6
                 }
               },
               {
                 name: '归还量',
                 type: 'line',
                 data: returnCounts,
-                itemStyle: {
-                  color: '#10b981'
+                smooth: true, // 平滑曲线
+                symbol: 'circle',
+                symbolSize: 5,
+                showSymbol: false, // 默认不显示符号，hover时显示
+                lineStyle: {
+                  color: '#67c23a',
+                  width: 2
+                },
+                emphasis: {
+                  focus: 'series',
+                  lineStyle: {
+                    width: 3
+                  },
+                  symbolSize: 6
                 }
               }
             ]
@@ -661,29 +960,64 @@ export default {
           this.readerTypeChart = echarts.init(container);
           
           // 准备数据 - 添加默认值处理
-          const readerTypes = this.readerTypeData.map(item => item.type_name || item.reader_type || '未知类型');
+          const readerTypes = this.readerTypeData.map(item => {
+            // 处理读者类型映射，将英文转换为中文
+            switch(item.type_name || item.reader_type) {
+              case 'student': return '学生';
+              case 'teacher': return '教师';
+              case 'admin': return '管理员';
+              case 'staff': return '职工';
+              default: return item.type_name || item.reader_type || '未知类型';
+            }
+          });
           const borrowCounts = this.readerTypeData.map(item => item.borrow_count || 0);
           
-          // 配置图表选项
+          // 配置图表选项 - 优化版
           const option = {
+            title: {
+              text: '读者类型分布',
+              left: 'center',
+              top: 10,
+              textStyle: {
+                color: '#333',
+                fontSize: 16,
+                fontWeight: 'normal'
+              }
+            },
             tooltip: {
-              trigger: 'item'
+              trigger: 'item',
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              borderColor: '#ccc',
+              borderWidth: 1,
+              padding: 10,
+              textStyle: {
+                color: '#333',
+                fontSize: 12
+              },
+              extraCssText: 'box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);',
+              formatter: function(params) {
+                return `${params.seriesName}<br/>${params.name}: ${params.value}次 (${params.percent}%)`;
+              }
             },
             legend: {
-              top: '5%',
-              data: readerTypes
+              top: '15%',
+              left: 'left',
+              orient: 'vertical',
+              itemWidth: 12,
+              itemHeight: 12,
+              itemGap: 8,
+              textStyle: {
+                fontSize: 12,
+                color: '#666'
+              }
             },
             series: [
               {
                 name: '借阅次数',
                 type: 'pie',
-                radius: ['40%', '70%'],
+                radius: ['40%', '70%'], // 环形饼图
+                center: ['65%', '55%'], // 调整中心位置
                 avoidLabelOverlap: false,
-                itemStyle: {
-                  borderRadius: 10,
-                  borderColor: '#fff',
-                  borderWidth: 2
-                },
                 label: {
                   show: false,
                   position: 'center'
@@ -691,8 +1025,29 @@ export default {
                 emphasis: {
                   label: {
                     show: true,
-                    fontSize: '18',
-                    fontWeight: 'bold'
+                    fontSize: '14',
+                    fontWeight: 'bold',
+                    formatter: function(params) {
+                      return `{name|${params.name}}\n{value|${params.value}次}`;
+                    },
+                    rich: {
+                      name: {
+                        fontSize: 14,
+                        color: '#666',
+                        lineHeight: 20
+                      },
+                      value: {
+                        fontSize: 16,
+                        color: '#333',
+                        fontWeight: 'bold',
+                        lineHeight: 24
+                      }
+                    }
+                  },
+                  itemStyle: {
+                    shadowBlur: 10,
+                    shadowOffsetX: 0,
+                    shadowColor: 'rgba(0, 0, 0, 0.3)'
                   }
                 },
                 labelLine: {
@@ -701,7 +1056,12 @@ export default {
                 data: readerTypes.map((type, index) => ({
                   name: type,
                   value: borrowCounts[index]
-                }))
+                })),
+                itemStyle: {
+                  borderRadius: 6,
+                  borderColor: '#fff',
+                  borderWidth: 2
+                }
               }
             ]
           };
@@ -760,27 +1120,98 @@ export default {
           const bookNames = this.popularBooksData.map(item => item.title || item.name || '未知图书');
           const borrowCounts = this.popularBooksData.map(item => item.borrow_count || 0);
           
-          // 配置图表选项
+          // 配置图表选项 - 优化版
           const option = {
+            title: {
+              text: '热门图书TOP10',
+              left: 'center',
+              top: 10,
+              textStyle: {
+                color: '#333',
+                fontSize: 16,
+                fontWeight: 'normal'
+              }
+            },
             tooltip: {
               trigger: 'axis',
               axisPointer: {
                 type: 'shadow'
-                }
+              },
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              borderColor: '#ccc',
+              borderWidth: 1,
+              padding: 10,
+              textStyle: {
+                color: '#333',
+                fontSize: 12
+              },
+              extraCssText: 'box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);',
+              formatter: function(params) {
+                const param = params[0];
+                return `${param.name}<br/>${param.seriesName}: ${param.value}次`;
+              }
             },
             grid: {
               left: '3%',
               right: '4%',
-              bottom: '3%',
+              bottom: '20%', // 增加底部边距以容纳标签
+              top: 60,
               containLabel: true
             },
             xAxis: {
-              type: 'value',
-              boundaryGap: [0, 0.01]
+              type: 'category',
+              data: bookNames,
+              axisLine: {
+                lineStyle: {
+                  color: '#ddd'
+                }
+              },
+              axisTick: {
+                alignWithLabel: true,
+                show: false
+              },
+              axisLabel: {
+                interval: 0, // 显示所有标签
+                rotate: 45, // 标签旋转45度防止重叠
+                margin: 20,
+                fontSize: 11,
+                color: '#666',
+                formatter: function(value) {
+                  // 如果标签文字过长，进行截断处理
+                  if (value && value.length > 8) {
+                    return value.substring(0, 8) + '...';
+                  }
+                  return value;
+                }
+              }
             },
             yAxis: {
-              type: 'category',
-              data: bookNames
+              type: 'value',
+              name: '借阅次数',
+              nameLocation: 'middle',
+              nameGap: 40,
+              nameTextStyle: {
+                fontSize: 12,
+                color: '#666'
+              },
+              axisLine: {
+                lineStyle: {
+                  color: '#ddd'
+                }
+              },
+              axisTick: {
+                show: false
+              },
+              axisLabel: {
+                fontSize: 11,
+                color: '#666'
+              },
+              splitLine: {
+                lineStyle: {
+                  type: 'dashed',
+                  color: '#eee'
+                }
+              }
             },
             series: [
               {
@@ -788,8 +1219,24 @@ export default {
                 type: 'bar',
                 data: borrowCounts,
                 itemStyle: {
-                  color: '#3b82f6'
-                }
+                  color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                    { offset: 0, color: '#83bff6' },
+                    { offset: 0.5, color: '#188df0' },
+                    { offset: 1, color: '#188df0' }
+                  ]),
+                  borderRadius: [4, 4, 0, 0]
+                },
+                emphasis: {
+                  itemStyle: {
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                      { offset: 0, color: '#2378f7' },
+                      { offset: 0.7, color: '#2378f7' },
+                      { offset: 1, color: '#83bff6' }
+                    ])
+                  }
+                },
+                barWidth: '60%',
+                barGap: '0%'
               }
             ]
           };
@@ -845,81 +1292,6 @@ export default {
       }
       if (this.topBooksChart) {
         this.topBooksChart.resize();
-      }
-    },
-    
-    /**
-     * 强制初始化图表
-     */
-    forceInitChart(container, chartType) {
-      try {
-        // 确保容器可见
-        container.style.width = '100%';
-        container.style.height = '100%';
-        
-        // 根据图表类型初始化不同的图表
-        switch(chartType) {
-          case 'category': {
-            if (this.categoryChart) {
-              this.categoryChart.dispose();
-            }
-            this.categoryChart = echarts.init(container);
-            
-            const categories = this.categoryData.map(item => item.category_name || item.name || '未知分类');
-            const borrowCounts = this.categoryData.map(item => item.book_count || item.count || 0);
-            
-            const categoryOption = {
-              tooltip: {
-                trigger: 'axis',
-                axisPointer: {
-                  type: 'shadow'
-                }
-              },
-              grid: {
-                left: '3%',
-                right: '4%',
-                bottom: '3%',
-                containLabel: true
-              },
-              xAxis: [
-                {
-                  type: 'category',
-                  data: categories,
-                  axisTick: {
-                    alignWithLabel: true
-                  }
-                }
-              ],
-              yAxis: [
-                {
-                  type: 'value'
-                }
-              ],
-              series: [
-                {
-                  name: '借阅次数',
-                  type: 'bar',
-                  barWidth: '60%',
-                  data: borrowCounts,
-                  itemStyle: {
-                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                      { offset: 0, color: '#83bff6' },
-                      { offset: 0.5, color: '#188df0' },
-                      { offset: 1, color: '#188df0' }
-                    ])
-                  }
-                }
-              ]
-            };
-            this.categoryChart.setOption(categoryOption);
-            break;
-          }
-          // 可以为其他图表类型添加类似的强制初始化逻辑
-          default:
-            break;
-        }
-      } catch (error) {
-        console.error(`强制初始化${chartType}图表失败:`, error);
       }
     }
   }

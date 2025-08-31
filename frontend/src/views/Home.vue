@@ -201,8 +201,9 @@ export default {
         this.borrowedBooks = borrowedRecords.filter(record => record.status === 'borrowed').length;
         this.overdueBooks = borrowedRecords.filter(record => record.status === 'overdue').length;
         
-        // 计算可借数量（总图书数 - 在借数）
-        this.availableBooks = Math.max(0, this.totalBooks - this.borrowedBooks);
+        // 修复可借数计算：从图书数据中累加每本书的available字段
+        const bookList = booksResponse.data.list || [];
+        this.availableBooks = bookList.reduce((sum, book) => sum + (book.available || 0), 0);
         
         // 【第2阶段更新】使用新的分类统计API数据
         if (categoriesResponse.success && categoriesResponse.data) {
@@ -284,7 +285,8 @@ export default {
         series: [{
           name: '分类占比',
           type: 'pie',
-          radius: ['40%', '70%'], // 使用环形饶图样式
+          radius: ['40%', '70%'],
+          center: ['65%', '55%'],
           avoidLabelOverlap: false,
           label: {
             show: false,
@@ -293,8 +295,24 @@ export default {
           emphasis: {
             label: {
               show: true,
-              fontSize: '18',
-              fontWeight: 'bold'
+              fontSize: '14',
+              fontWeight: 'bold',
+              formatter: function(params) {
+                return `{name|${params.name}}\n{value|${params.value}本}`;
+              },
+              rich: {
+                name: {
+                  fontSize: 14,
+                  color: '#666',
+                  lineHeight: 20
+                },
+                value: {
+                  fontSize: 16,
+                  color: '#333',
+                  fontWeight: 'bold',
+                  lineHeight: 24
+                }
+              }
             }
           },
           labelLine: {
@@ -302,7 +320,7 @@ export default {
           },
           data: seriesData,
           itemStyle: {
-            borderRadius: 10,
+            borderRadius: 6,
             borderColor: '#fff',
             borderWidth: 2
           }
@@ -406,7 +424,9 @@ export default {
         const borrowedRecords = borrowsResponse.data.list || borrowsResponse.data || [];
         this.borrowedBooks = borrowedRecords.filter(record => record.status === 'borrowed').length;
         this.overdueBooks = borrowedRecords.filter(record => record.status === 'overdue').length;
-        this.availableBooks = Math.max(0, this.totalBooks - this.borrowedBooks);
+        // 修复可借数计算：从图书数据中累加每本书的available字段
+        const bookList = booksResponse.data.list || [];
+        this.availableBooks = bookList.reduce((sum, book) => sum + (book.available || 0), 0);
         
         this.processBookCategoryData(booksResponse.data.list);
         await this.fetchLegacyTrendData();
@@ -460,21 +480,58 @@ export default {
       this.totalBooks = 27; // 模拟数据
       this.borrowedBooks = 8; // 模拟数据
       this.overdueBooks = 3; // 模拟数据
-      this.availableBooks = 19; // 模拟数据
+      this.availableBooks = 19; // 模拟数据，修复为直接设置正确的可借数
       
-      // 默认分类数据
+      // 默认分类数据 - 更新为新的配置格式
       this.bookCategoryData = {
         legend: ['计算机', '文学小说', '科学', '哲学'],
         series: [{
           name: '分类占比',
           type: 'pie',
-          radius: '60%',
+          radius: ['40%', '70%'],
+          center: ['65%', '55%'],
+          avoidLabelOverlap: false,
+          label: {
+            show: false,
+            position: 'center'
+          },
+          emphasis: {
+            label: {
+              show: true,
+              fontSize: '14',
+              fontWeight: 'bold',
+              formatter: function(params) {
+                return `{name|${params.name}}\n{value|${params.value}本}`;
+              },
+              rich: {
+                name: {
+                  fontSize: 14,
+                  color: '#666',
+                  lineHeight: 20
+                },
+                value: {
+                  fontSize: 16,
+                  color: '#333',
+                  fontWeight: 'bold',
+                  lineHeight: 24
+                }
+              }
+            }
+          },
+          labelLine: {
+            show: false
+          },
           data: [
             { name: '计算机', value: 8 },
             { name: '文学小说', value: 6 },
             { name: '科学', value: 7 },
             { name: '哲学', value: 6 }
-          ]
+          ],
+          itemStyle: {
+            borderRadius: 6,
+            borderColor: '#fff',
+            borderWidth: 2
+          }
         }]
       };
       
@@ -546,14 +603,44 @@ export default {
         series: [{
           name: '分类占比',
           type: 'pie',
-          radius: '60%',
-          data: seriesData,
+          radius: ['40%', '70%'],
+          center: ['65%', '55%'],
+          avoidLabelOverlap: false,
+          label: {
+            show: false,
+            position: 'center'
+          },
           emphasis: {
-            itemStyle: {
-              shadowBlur: 10,
-              shadowOffsetX: 0,
-              shadowColor: 'rgba(0, 0, 0, 0.5)'
+            label: {
+              show: true,
+              fontSize: '14',
+              fontWeight: 'bold',
+              formatter: function(params) {
+                return `{name|${params.name}}\n{value|${params.value}本}`;
+              },
+              rich: {
+                name: {
+                  fontSize: 14,
+                  color: '#666',
+                  lineHeight: 20
+                },
+                value: {
+                  fontSize: 16,
+                  color: '#333',
+                  fontWeight: 'bold',
+                  lineHeight: 24
+                }
+              }
             }
+          },
+          labelLine: {
+            show: false
+          },
+          data: seriesData,
+          itemStyle: {
+            borderRadius: 6,
+            borderColor: '#fff',
+            borderWidth: 2
           }
         }]
       };
@@ -642,12 +729,12 @@ export default {
       
       const myChart = echarts.init(chartDom);
       
-      // 设置图表配置 - 第2阶段增强版
+      // 设置图表配置 - 优化版
       const option = {
         title: {
           text: '图书分类分布',
           left: 'center',
-          top: 20,
+          top: 10,
           textStyle: {
             color: '#333',
             fontSize: 16
@@ -662,14 +749,62 @@ export default {
         },
         legend: {
           orient: 'vertical',
+          left: 'left',
+          top: 'middle',
           left: 10,
-          top: 60,
-          data: this.bookCategoryData.legend,
           textStyle: {
             fontSize: 12
-          }
+          },
+          // 优化图例显示，避免重叠
+          itemWidth: 12,
+          itemHeight: 12,
+          itemGap: 6
         },
-        series: this.bookCategoryData.series
+        series: [
+          {
+            name: '分类占比',
+            type: 'pie',
+            radius: ['40%', '70%'], // 环形饼图
+            center: ['65%', '55%'], // 调整中心位置
+            avoidLabelOverlap: false,
+            label: {
+              show: false,
+              position: 'center'
+            },
+            emphasis: {
+              label: {
+                show: true,
+                fontSize: '14',
+                fontWeight: 'bold',
+                formatter: function(params) {
+                  return `{name|${params.name}}\n{value|${params.value}本}`;
+                },
+                rich: {
+                  name: {
+                    fontSize: 14,
+                    color: '#666',
+                    lineHeight: 20
+                  },
+                  value: {
+                    fontSize: 16,
+                    color: '#333',
+                    fontWeight: 'bold',
+                    lineHeight: 24
+                  }
+                }
+              }
+            },
+            labelLine: {
+              show: false
+            },
+            data: this.bookCategoryData.series[0].data,
+            itemStyle: {
+              borderRadius: 6,
+              borderColor: '#fff',
+              borderWidth: 2
+            }
+          }
+        ]
       };
       
       myChart.setOption(option);
@@ -752,7 +887,51 @@ export default {
           legend: {
             data: this.bookCategoryData.legend
           },
-          series: this.bookCategoryData.series
+          series: [
+            {
+              name: '分类占比',
+              type: 'pie',
+              radius: ['40%', '70%'],
+              center: ['65%', '55%'],
+              avoidLabelOverlap: false,
+              label: {
+                show: false,
+                position: 'center'
+              },
+              emphasis: {
+                label: {
+                  show: true,
+                  fontSize: '14',
+                  fontWeight: 'bold',
+                  formatter: function(params) {
+                    return `{name|${params.name}}\n{value|${params.value}本}`;
+                  },
+                  rich: {
+                    name: {
+                      fontSize: 14,
+                      color: '#666',
+                      lineHeight: 20
+                    },
+                    value: {
+                      fontSize: 16,
+                      color: '#333',
+                      fontWeight: 'bold',
+                      lineHeight: 24
+                    }
+                  }
+                }
+              },
+              labelLine: {
+                show: false
+              },
+              data: this.bookCategoryData.series[0].data,
+              itemStyle: {
+                borderRadius: 6,
+                borderColor: '#fff',
+                borderWidth: 2
+              }
+            }
+          ]
         });
       }
       
