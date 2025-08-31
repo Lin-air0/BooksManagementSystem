@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 自定义工具类 */
+@layer utilities {
+  .content-auto {
+    content-visibility: auto;
+  }
+  
+  .w-50 {
+    width: 12.5rem;
+  }
+  
+  .h-15 {
+    height: 3.75rem;
+  }
+}
+
+/* 自定义组件样式 */
+@layer components {
+  .nav-active {
+    @apply bg-primary text-white;
+  }
+  
+  .table-hover-row:hover {
+    @apply bg-gray-50;
+  }
+  
+  .overdue-row {
+    @apply bg-red-50;
+  }
+  
+  .card-shadow {
+    @apply shadow-card;
+  }
+  
+  .btn-primary {
+    @apply bg-primary text-white py-2 px-4 rounded-md font-medium hover:bg-blue-700 transition-colors;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary text-textPrimary py-2 px-4 rounded-md font-medium hover:bg-gray-200 transition-colors;
+  }
+}
+
+/* 添加缺失的CSS变量定义 */
+:root {
+  --primary: #2563eb;
+  --secondary: #f3f4f6;
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --border-light: #e5e7eb;
+  --border-medium: #d1d5db;
+  --danger: #dc3545;
+  --success: #28a745;
+  --primary-light: #2563eb;
+}
+
+/* 定义Tailwind中使用的颜色类 */
+.bg-primary {
+  background-color: var(--primary);
+}
+
+.text-primary {
+  color: var(--primary);
+}
+
+.bg-secondary {
+  background-color: var(--secondary);
+}
+
+.text-textPrimary {
+  color: var(--text-primary);
+}
+
+.text-textSecondary {
+  color: var(--text-secondary);
+}
+
+.border-borderLight {
+  border-color: var(--border-light);
+}
+
+.border-borderMedium {
+  border-color: var(--border-medium);
+}
+
+.text-danger {
+  color: var(--danger);
+}
+
+.text-success {
+  color: var(--success);
+}
+
+.bg-danger {
+  background-color: var(--danger);
+}
+
+.bg-success {
+  background-color: var(--success);
+}
+
+.text-primaryLight {
+  color: var(--primary-light);
+}
+
+.bg-primaryLight {
+  background-color: var(--primary-light);
+}
+
+/* 卡片阴影 */
+.shadow-card {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}

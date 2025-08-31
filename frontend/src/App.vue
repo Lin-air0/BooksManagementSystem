@@ -1,45 +1,107 @@
-<!-- Vue应用根组件 -->
-<!-- 版本：v1.0.1 -->
 <template>
-  <div id="app">
-    <header class="app-header">
-      <h1>图书借阅信息管理系统</h1>
-    </header>
-    
-    <!-- 统一导航栏 -->
-    <nav class="main-nav">
-      <ul class="nav-list">
-        <li class="nav-item">
-          <router-link to="/" class="nav-link" active-class="nav-link-active" exact>首页</router-link>
-        </li>
-        <li class="nav-item">
-          <router-link to="/book-list" class="nav-link" active-class="nav-link-active">图书管理</router-link>
-        </li>
-        <li class="nav-item">
-          <router-link to="/reader-manage" class="nav-link" active-class="nav-link-active">读者管理</router-link>
-        </li>
-        <li class="nav-item">
-          <router-link to="/borrow-record" class="nav-link" active-class="nav-link-active">借阅记录</router-link>
-        </li>
-        <li class="nav-item">
-          <router-link to="/statistics" class="nav-link" active-class="nav-link-active">统计分析</router-link>
-        </li>
-      </ul>
-    </nav>
-    
-    <main class="app-main">
-      <router-view />
-    </main>
+  <div class="flex h-screen overflow-hidden bg-gray-50 font-sans text-textPrimary">
+    <!-- 左侧侧边栏 -->
+    <aside class="w-64 bg-secondary border-r border-borderLight h-full flex-shrink-0">
+      <div class="py-6 px-4">
+        <!-- 系统名称在侧边栏顶部（小型设备显示） -->
+        <div class="lg:hidden text-primary text-xl font-semibold mb-8">图书借阅管理系统</div>
+        
+        <!-- 导航菜单 -->
+        <nav class="space-y-1">
+          <router-link 
+            to="/" 
+            class="flex items-center px-4 py-3 rounded-md text-sm font-medium text-textPrimary hover:bg-gray-200 transition-colors" 
+            active-class="nav-active"
+            exact
+          >
+            <i class="fa fa-tachometer w-5 h-5 mr-3"></i>
+            首页
+          </router-link>
+          <router-link 
+            to="/book-list" 
+            class="flex items-center px-4 py-3 rounded-md text-sm font-medium text-textPrimary hover:bg-gray-200 transition-colors"
+            active-class="nav-active"
+          >
+            <i class="fa fa-book w-5 h-5 mr-3"></i>
+            图书管理
+          </router-link>
+          <router-link 
+            to="/reader-manage" 
+            class="flex items-center px-4 py-3 rounded-md text-sm font-medium text-textPrimary hover:bg-gray-200 transition-colors"
+            active-class="nav-active"
+          >
+            <i class="fa fa-users w-5 h-5 mr-3"></i>
+            读者管理
+          </router-link>
+          <router-link 
+            to="/borrow-record" 
+            class="flex items-center px-4 py-3 rounded-md text-sm font-medium text-textPrimary hover:bg-gray-200 transition-colors"
+            active-class="nav-active"
+          >
+            <i class="fa fa-exchange w-5 h-5 mr-3"></i>
+            借阅记录
+          </router-link>
+          <router-link 
+            to="/statistics" 
+            class="flex items-center px-4 py-3 rounded-md text-sm font-medium text-textPrimary hover:bg-gray-200 transition-colors"
+            active-class="nav-active"
+          >
+            <i class="fa fa-bar-chart w-5 h-5 mr-3"></i>
+            统计分析
+          </router-link>
+        </nav>
+      </div>
+    </aside>
+
+    <!-- 主内容区 -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <!-- 顶部导航栏 -->
+      <header class="h-15 bg-white border-b border-borderLight flex items-center justify-between px-6">
+        <div class="text-primary text-xl font-semibold hidden lg:block">图书借阅管理系统</div>
+        
+        <!-- 用户信息 -->
+        <div class="flex items-center space-x-3">
+          <span class="text-sm">管理员</span>
+          <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+            <i class="fa fa-user"></i>
+          </div>
+        </div>
+      </header>
+
+      <!-- 页面内容 -->
+      <main class="flex-1 overflow-y-auto bg-gray-50 p-6">
+        <div class="container mx-auto">
+          <router-view />
+        </div>
+      </main>
+    </div>
   </div>
 </template>
 
 <script>
 export default {
-  name: 'App'
+  name: 'App',
+  watch: {
+    $route: {
+      immediate: true,
+      handler(to) {
+        if (!to.name) {
+          this.$router.push('/');
+        }
+      }
+    }
+  }
 };
 </script>
 
 <style>
+/* 引入Tailwind CSS */
+@import './assets/css/tailwind.css';
+
+/* 引入Font Awesome图标 */
+@import url('https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css');
+
+/* 自定义样式 */
 * {
   margin: 0;
   padding: 0;
@@ -47,63 +109,35 @@ export default {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Inter', 'system-ui', 'sans-serif';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f8fafc;
-  color: #333;
 }
 
-.app-header {
-  background-color: #2563eb;
+/* 导航活跃状态自定义样式 */
+.nav-active {
+  background-color: var(--primary);
   color: white;
-  padding: 20px;
-  text-align: center;
 }
 
-/* 导航栏样式 */
-.main-nav {
-  background-color: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+/* 响应式布局调整 */
+@media (max-width: 768px) {
+  .w-64 {
+    width: 16rem;
+  }
 }
 
-.nav-list {
-  display: flex;
-  list-style: none;
-  max-width: 1200px;
+/* 页面容器样式 */
+.container {
+  max-width: 100%;
   margin: 0 auto;
-  padding: 0 20px;
 }
 
-.nav-item {
-  margin-right: 2px;
+/* 页面过渡动画 */
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.3s;
 }
-
-.nav-link {
-  display: block;
-  padding: 16px 20px;
-  color: #4b5563;
-  text-decoration: none;
-  transition: all 0.2s ease;
-}
-
-.nav-link:hover {
-  background-color: #f3f4f6;
-  color: #1e40af;
-}
-
-.nav-link-active {
-  background-color: #dbeafe;
-  color: #1e40af;
-  font-weight: 500;
-  border-bottom: 3px solid #2563eb;
-}
-
-.app-main {
-  padding: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
-  min-height: calc(100vh - 240px);
+.fade-enter, .fade-leave-to {
+  opacity: 0;
 }
 </style>

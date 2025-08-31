@@ -2,5 +2,11 @@
   "dependencies": {
     "file-saver": "^2.0.5",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.16",
+    "playwright": "^1.55.0",
+    "postcss": "^8.4.31",
+    "tailwindcss": "^2.2.19"
   }
 }

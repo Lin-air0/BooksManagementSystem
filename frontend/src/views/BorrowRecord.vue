@@ -1,123 +1,229 @@
 <template>
-  <div class="container">
-    <div class="page-header">
-      <h2>借阅记录管理</h2>
-    </div>
-    
-    <!-- 筛选区 -->
-    <div class="filter-section">
-      <div class="filter-item">
-        <label>状态筛选：</label>
-        <select v-model="filterStatus" @change="filterRecords" class="filter-select" :disabled="isLoading">
-          <option value="all">全部</option>
-          <option value="borrowed">借阅中</option>
-          <option value="returned">已归还</option>
-          <option value="overdue">逾期</option>
-        </select>
-      </div>
-      <div class="filter-item">
+  <div>
+    <!-- 页面标题和操作按钮 -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+      <h1 class="text-xl font-semibold">借阅记录</h1>
+      <div class="flex gap-2 self-end sm:self-auto">
         <button 
           @click="exportBorrowRecords"
-          class="export-btn"
+          class="bg-secondary text-textPrimary py-2 px-4 rounded-md font-medium hover:bg-gray-200 transition-colors"
           :disabled="isProcessingExport || borrowRecords.length === 0"
         >
-          <i class="icon-export">↓</i>
+          <i class="fa fa-download mr-2"></i>
           {{ isProcessingExport ? '导出中...' : '导出记录' }}
         </button>
       </div>
     </div>
     
-    <!-- 加载状态 -->
-    <div v-if="isLoading" class="loading-container">
-      <div class="loading-spinner"></div>
-      <p>加载中...</p>
+    <!-- 搜索和筛选区域 -->
+    <div class="bg-white rounded-lg border border-borderLight p-5 card-shadow mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
+          <label class="block text-sm text-textSecondary mb-1">图书名称</label>
+          <div class="relative">
+            <input 
+              type="text" 
+              v-model="searchParams.bookName"
+              placeholder="请输入图书名称" 
+              class="w-full px-3 py-2 border border-borderMedium rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+            >
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm text-textSecondary mb-1">读者姓名</label>
+          <div class="relative">
+            <input 
+              type="text" 
+              v-model="searchParams.readerName"
+              placeholder="请输入读者姓名" 
+              class="w-full px-3 py-2 border border-borderMedium rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+            >
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm text-textSecondary mb-1">借阅状态</label>
+          <select 
+            v-model="filterStatus" 
+            @change="filterRecords" 
+            class="w-full px-3 py-2 border border-borderMedium rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+            :disabled="isLoading"
+          >
+            <option value="all">全部状态</option>
+            <option value="borrowed">借阅中</option>
+            <option value="returned">已归还</option>
+            <option value="overdue">已逾期</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm text-textSecondary mb-1">借阅日期</label>
+          <div class="relative">
+            <input 
+              type="date" 
+              v-model="searchParams.borrowDate"
+              class="w-full px-3 py-2 border border-borderMedium rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+            >
+          </div>
+        </div>
+      </div>
+      
+      <div class="flex justify-end mt-4">
+        <button 
+          @click="resetSearch"
+          class="bg-secondary text-textPrimary py-2 px-4 rounded-md font-medium hover:bg-gray-200 transition-colors mr-2"
+          :disabled="isLoading"
+        >
+          <i class="fa fa-refresh mr-2"></i>重置
+        </button>
+        <button 
+          @click="searchRecords"
+          class="bg-primary text-white py-2 px-4 rounded-md font-medium hover:bg-primary/90 transition-colors"
+          :disabled="isLoading"
+        >
+          <i class="fa fa-search mr-2"></i>搜索
+        </button>
+      </div>
     </div>
     
-    <!-- 记录列表区 -->
-    <div v-else class="table-section">
-      <table class="borrow-record-table">
-        <thead>
-          <tr>
-            <th>序号</th>
-            <th>图书名称</th>
-            <th>读者姓名</th>
-            <th>借阅日期</th>
-            <th>应还日期</th>
-            <th>归还日期</th>
-            <th>状态</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="borrowRecords.length === 0" class="empty-row">
-            <td colspan="8" class="empty-message">暂无借阅记录</td>
-          </tr>
-          <tr v-else v-for="(record, index) in borrowRecords" :key="record.id" :class="{ 'overdue': record.isOverdue }">
-            <td>{{ (currentPage - 1) * pageSize + index + 1 }}</td>
-            <td>{{ record.bookName }}</td>
-            <td>{{ record.readerName }}</td>
-            <td>{{ formatDateTime(record.borrowDate) }}</td>
-            <td>{{ formatDateTime(record.dueDate) }}</td>
-            <td>{{ record.returnDate ? formatDateTime(record.returnDate) : '-' }}</td>
-            <td>
-              <span :class="{
-                  'text-success': record.actualStatus === 'returned',
-                  'text-danger': record.actualStatus === 'overdue',
-                  'text-warning': record.actualStatus === 'borrowed'
-                }">
-                {{ getDisplayStatus(record) }}
-              </span>
-            </td>
-            <td class="action-column">
-              <!-- 对所有未还记录显示还书按钮，包括逾期的记录 -->
-              <button 
-                v-if="record.actualStatus === 'borrowed' || record.actualStatus === 'overdue'" 
-                class="return-btn" 
-                @click="returnBook(record.id)"
-                :disabled="isSubmitting"
-              >
-                还书
-              </button>
-              <span v-else>-</span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <!-- 加载状态 -->
+    <div v-if="isLoading" class="bg-white rounded-lg border border-borderLight p-8 card-shadow text-center">
+      <div class="flex flex-col items-center">
+        <div class="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p class="text-textSecondary">正在加载借阅记录...</p>
+      </div>
+    </div>
+    
+    <!-- 无结果提示 -->
+    <div v-if="!isLoading && borrowRecords.length === 0" class="bg-white rounded-lg border border-borderLight p-8 card-shadow text-center">
+      <p class="text-textSecondary">暂无借阅记录</p>
+    </div>
+    
+    <!-- 借阅记录列表 -->
+    <div v-if="!isLoading && borrowRecords.length > 0" class="bg-white rounded-lg border border-borderLight card-shadow overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-borderLight">
+          <thead class="bg-secondary">
+            <tr>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">记录ID</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">图书名称</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">读者信息</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">借阅日期</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">应还日期</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">归还日期</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">状态</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">操作</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-borderLight">
+            <tr v-for="(record, index) in borrowRecords" :key="record.id" 
+                class="table-hover-row transition-colors" 
+                :class="{ 'overdue-row': record.isOverdue }"
+            >
+              <td class="px-6 py-4 whitespace-nowrap text-sm">BR-{{ String(record.id).padStart(3, '0') }}</td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm">{{ record.bookName }}</div>
+                <div class="text-xs text-textSecondary">BK-{{ String(record.bookId || '').padStart(3, '0') }}</div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm">{{ record.readerName }}</div>
+                <div class="text-xs text-textSecondary">RD-{{ String(record.readerId || '').padStart(3, '0') }}</div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm">{{ formatDate(record.borrowDate) }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm">{{ formatDate(record.dueDate) }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-textSecondary">
+                {{ record.returnDate ? formatDate(record.returnDate) : '-' }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <span v-if="record.actualStatus === 'borrowed'" 
+                      class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-primaryLight/10 text-primaryLight">
+                  借阅中
+                </span>
+                <span v-else-if="record.actualStatus === 'overdue'" 
+                      class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-danger/10 text-danger">
+                  已逾期
+                </span>
+                <span v-else-if="record.actualStatus === 'returned'" 
+                      class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-success/10 text-success">
+                  已归还
+                </span>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                <button 
+                  v-if="record.actualStatus === 'borrowed' || record.actualStatus === 'overdue'" 
+                  @click="returnBook(record.id)"
+                  class="text-primary hover:text-primary/80 transition-colors"
+                  :disabled="isSubmitting"
+                >
+                  还书
+                </button>
+                <span v-else class="text-textSecondary">-</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       
-      <!-- 分页控件 -->
-      <div class="pagination-container" v-if="!isLoading && total > 0">
-        <div class="pagination-info">
-          共 {{ total }} 条记录，第 {{ currentPage }} / {{ Math.ceil(total / pageSize) }} 页
-        </div>
-        <div class="pagination-buttons">
+      <!-- 分页 -->
+      <div class="px-6 py-4 bg-white border-t border-borderLight flex items-center justify-between">
+        <div class="flex-1 flex justify-between sm:hidden">
           <button 
-            class="page-btn"
-            :disabled="currentPage === 1"
-            @click="handlePageChange(1)"
-          >
-            首页
-          </button>
-          <button 
-            class="page-btn"
-            :disabled="currentPage === 1"
             @click="handlePageChange(currentPage - 1)"
+            :disabled="currentPage === 1"
+            class="relative inline-flex items-center px-4 py-2 border border-borderMedium text-sm font-medium rounded-md text-textPrimary bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             上一页
           </button>
           <button 
-            class="page-btn"
-            :disabled="currentPage === Math.ceil(total / pageSize)"
             @click="handlePageChange(currentPage + 1)"
+            :disabled="currentPage >= Math.ceil(total / pageSize)"
+            class="ml-3 relative inline-flex items-center px-4 py-2 border border-borderMedium text-sm font-medium rounded-md text-textPrimary bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             下一页
           </button>
-          <button 
-            class="page-btn"
-            :disabled="currentPage === Math.ceil(total / pageSize)"
-            @click="handlePageChange(Math.ceil(total / pageSize))"
-          >
-            末页
-          </button>
+        </div>
+        <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+          <div>
+            <p class="text-sm text-textSecondary">
+              显示第 <span class="font-medium">{{ (currentPage - 1) * pageSize + 1 }}</span> 至 
+              <span class="font-medium">{{ Math.min(currentPage * pageSize, total) }}</span> 条，
+              共 <span class="font-medium">{{ total }}</span> 条结果
+            </p>
+          </div>
+          <div>
+            <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+              <button 
+                @click="handlePageChange(1)"
+                :disabled="currentPage === 1"
+                class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-borderMedium bg-white text-sm font-medium text-textSecondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span class="sr-only">首页</span>
+                <i class="fa fa-angle-double-left text-xs"></i>
+              </button>
+              <button 
+                @click="handlePageChange(currentPage - 1)"
+                :disabled="currentPage === 1"
+                class="relative inline-flex items-center px-2 py-2 border border-borderMedium bg-white text-sm font-medium text-textSecondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span class="sr-only">上一页</span>
+                <i class="fa fa-chevron-left text-xs"></i>
+              </button>
+              <button 
+                @click="handlePageChange(currentPage + 1)"
+                :disabled="currentPage >= Math.ceil(total / pageSize)"
+                class="relative inline-flex items-center px-2 py-2 border border-borderMedium bg-white text-sm font-medium text-textSecondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span class="sr-only">下一页</span>
+                <i class="fa fa-chevron-right text-xs"></i>
+              </button>
+              <button 
+                @click="handlePageChange(Math.ceil(total / pageSize))"
+                :disabled="currentPage >= Math.ceil(total / pageSize)"
+                class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-borderMedium bg-white text-sm font-medium text-textSecondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span class="sr-only">末页</span>
+                <i class="fa fa-angle-double-right text-xs"></i>
+              </button>
+            </nav>
+          </div>
         </div>
       </div>
     </div>
@@ -159,6 +265,12 @@ export default {
   name: 'BorrowRecord',
   data() {
     return {
+      // 搜索参数
+      searchParams: {
+        bookName: '',
+        readerName: '',
+        borrowDate: ''
+      },
       filterStatus: 'all', // 筛选状态：all, borrowed, returned, overdue
       borrowRecords: [],    // 借阅记录列表
       isLoading: false,     // 加载状态
@@ -178,64 +290,73 @@ export default {
   },
   methods: {
     /**
-   * 从后端获取借阅记录
-   * 支持后端标准响应格式：{code: 0/200, data: {...}, msg: '...'}
-   * @async
-   * @returns {Promise<void>}
-   */
-  async fetchBorrowRecords() {
-    this.isLoading = true;
-    try {
-      const params = {
-        page: this.currentPage,
-        pageSize: this.pageSize
-      };
+     * 从后端获取借阅记录
+     * 支持后端标准响应格式：{code: 0/200, data: {...}, msg: '...'}
+     * @async
+     * @returns {Promise<void>}
+     */
+    async fetchBorrowRecords() {
+      this.isLoading = true;
+      try {
+        console.log('正在获取借阅记录...');
+        const params = {
+          page: this.currentPage,
+          pageSize: this.pageSize
+        };
 
-      // 根据筛选状态设置参数
-      this.setFilterParams(params);
+        // 根据筛选状态设置参数
+        this.setFilterParams(params);
 
-      const response = await borrowAPI.getBorrowRecords(params);
-      
-      // 统一响应格式处理 - 支持code=0和code=200两种格式
-      const isSuccess = (response.code === 0 || response.code === 200) && response.data;
-      
-      if (isSuccess) {
-        this.processBorrowRecords(response.data);
-      } else {
-        console.warn('获取借阅记录格式异常:', response);
-        // 使用模拟数据作为降级方案
+        const response = await borrowAPI.getBorrowRecords(params);
+        console.log('借阅记录响应:', response);
+        
+        // 统一响应格式处理 - 支持code=0和code=200两种格式
+        const isSuccess = (response.code === 0 || response.code === 200) && response.data;
+        
+        if (isSuccess) {
+          this.processBorrowRecords(response.data);
+          
+          // 确保DOM更新完成后再执行其他操作
+          this.$nextTick(() => {
+            console.log('DOM更新完成，借阅记录已渲染');
+          });
+        } else {
+          console.warn('获取借阅记录格式异常:', response);
+          // 使用模拟数据作为降级方案
+          this.useMockData();
+        }
+      } catch (error) {
+        console.error('获取借阅记录失败:', error);
+        
+        // 友好的错误提示
+        let errorMessage = '获取借阅记录失败';
+        if (error.response) {
+          errorMessage += `: ${error.response.status} ${error.response.statusText}`;
+        } else if (error.message) {
+          errorMessage += `: ${error.message}`;
+        } else {
+          errorMessage += ': 网络连接异常';
+        }
+        
+        // 仅在开发环境显示详细错误
+        if (process.env.NODE_ENV === 'development') {
+          alert(errorMessage);
+        }
+        
+        // 使用模拟数据避免页面空白
         this.useMockData();
+      } finally {
+        this.isLoading = false;
       }
-    } catch (error) {
-      console.error('获取借阅记录失败:', error);
-      
-      // 友好的错误提示
-      let errorMessage = '获取借阅记录失败';
-      if (error.response) {
-        errorMessage += `: ${error.response.status} ${error.response.statusText}`;
-      } else if (error.message) {
-        errorMessage += `: ${error.message}`;
-      } else {
-        errorMessage += ': 网络连接异常';
-      }
-      
-      // 仅在开发环境显示详细错误
-      if (process.env.NODE_ENV === 'development') {
-        alert(errorMessage);
-      }
-      
-      // 使用模拟数据避免页面空白
-      this.useMockData();
-    } finally {
-      this.isLoading = false;
-    }
-  },
+    },
 
     /**
-     * 根据筛选状态设置API请求参数
-     * @param {Object} params - API请求参数对象
+     * 设置API请求参数
+     * 包括分页、状态筛选和搜索条件
+     * @param {Object} params - 请求参数对象
      */
     setFilterParams(params) {
+      // 状态筛选
       if (this.filterStatus !== 'all') {
         if (this.filterStatus === 'overdue') {
           // 逾期记录筛选 - 使用is_overdue参数
@@ -245,8 +366,41 @@ export default {
           params.status = this.filterStatus;
         }
       }
+      
+      // 搜索参数 - 修复搜索功能
+      if (this.searchParams.bookName?.trim()) {
+        params.bookName = this.searchParams.bookName.trim();
+      }
+      if (this.searchParams.readerName?.trim()) {
+        params.readerName = this.searchParams.readerName.trim();
+      }
+      if (this.searchParams.borrowDate) {
+        params.borrowDate = this.searchParams.borrowDate;
+      }
     },
-
+    
+    /**
+     * 搜索记录
+     */
+    searchRecords() {
+      this.currentPage = 1;
+      this.fetchBorrowRecords();
+    },
+    
+    /**
+     * 重置搜索
+     */
+    resetSearch() {
+      this.searchParams = {
+        bookName: '',
+        readerName: '',
+        borrowDate: ''
+      };
+      this.filterStatus = 'all';
+      this.currentPage = 1;
+      this.fetchBorrowRecords();
+    },
+    
     /**
      * 处理后端返回的借阅记录数据
      * 统一字段映射：将下划线命名转换为驼峰命名
@@ -254,8 +408,22 @@ export default {
      */
     processBorrowRecords(data) {
       try {
+        console.log('处理借阅记录数据:', data);
         // 获取数据列表 - 支持list和records两种格式
-        const records = data.list || data.records || data;
+        let records = [];
+        if (data.list) {
+          // 分页数据格式 {list: [...], total: N}
+          records = data.list;
+          this.total = data.total || 0;
+        } else if (Array.isArray(data)) {
+          // 数组格式 [...]
+          records = data;
+          this.total = data.length;
+        } else {
+          // 其他格式
+          records = [];
+          this.total = 0;
+        }
         
         if (!Array.isArray(records)) {
           console.warn('借阅记录数据格式异常，期望数组格式:', typeof records);
@@ -265,9 +433,6 @@ export default {
 
         // 统一字段映射处理
         this.borrowRecords = records.map(record => this.mapBorrowRecord(record));
-        
-        // 设置总记录数
-        this.total = data.total || data.totalCount || records.length;
         
         console.log('成功处理借阅记录:', this.borrowRecords.length, '条');
       } catch (error) {
@@ -287,20 +452,20 @@ export default {
       const actualStatus = record.actual_status || record.status || 'borrowed';
       
       return {
-        id: record.borrow_id || record.id || record.borrowId,
-        bookName: record.book_title || record.bookTitle,
-        readerName: record.reader_name || record.readerName,
-        borrowDate: record.borrow_date || record.borrowDate,
-        dueDate: record.due_date || record.dueDate,
+        id: record.borrow_id || record.id || record.borrowId || record._id,
+        bookId: record.book_id || record.bookId,
+        bookName: record.book_title || record.bookTitle || record.title || record.book_name,
+        readerId: record.reader_id || record.readerId,
+        readerName: record.reader_name || record.readerName || record.name,
+        borrowDate: record.borrow_date || record.borrowDate || record.created_at,
+        dueDate: record.due_date || record.dueDate || record.due_date,
         returnDate: record.return_date || record.returnDate,
         status: record.status || 'borrowed',
         actualStatus: actualStatus,
-        isOverdue: actualStatus === 'overdue' || record.is_overdue === 1,
-        overdueDays: record.overdue_days || record.overdueDays || 0
+        isOverdue: actualStatus === 'overdue' || record.is_overdue === 1 || record.isOverdue,
+        overdueDays: record.overdue_days || record.overdueDays || record.overdue_days || 0
       };
     },
-
-
 
     /**
      * 使用模拟数据（当API调用失败时作为降级方案）
@@ -384,6 +549,20 @@ export default {
     filterRecords() {
       this.currentPage = 1; // 重置为第一页
       this.fetchBorrowRecords();
+    },
+
+    /**
+     * 格式化日期显示
+     * @param {string} dateString - 日期字符串
+     * @returns {string} 格式化后的日期字符串
+     */
+    formatDate(dateString) {
+      if (!dateString) return '-';
+      const date = new Date(dateString);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
     },
 
     /**
@@ -550,268 +729,7 @@ export default {
 </script>
 
 <style scoped>
-.container {
-  padding: 20px;
-}
-
-.page-header {
-  margin-bottom: 20px;
-}
-
-.page-header h2 {
-  font-size: 24px;
-  font-weight: bold;
-  color: #333;
-}
-
-.filter-section {
-  background-color: #f8f9fa;
-  padding: 15px;
-  border-radius: 4px;
-  margin-bottom: 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.filter-item {
-  display: flex;
-  align-items: center;
-}
-
-.filter-item label {
-  margin-right: 10px;
-  font-weight: 500;
-  color: #666;
-}
-
-.filter-select {
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-  background-color: #fff;
-  cursor: pointer;
-}
-
-/* 导出按钮样式 */
-.export-btn {
-  background-color: #0891b2;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.export-btn:hover:not(:disabled) {
-  background-color: #0e7490;
-  transform: translateY(-1px);
-}
-
-.export-btn:disabled {
-  background-color: #9ca3af;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.table-section {
-  overflow-x: auto;
-}
-
-.borrow-record-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.borrow-record-table th,
-.borrow-record-table td {
-  padding: 12px 15px;
-  text-align: left;
-  border-bottom: 1px solid #ddd;
-}
-
-/* 操作列样式 */
-.action-column {
-  white-space: nowrap;
-}
-
-.return-btn {
-  padding: 6px 12px;
-  background-color: #16a34a;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-  transition: background-color 0.2s;
-}
-
-.return-btn:hover:not(:disabled) {
-  background-color: #15803d;
-}
-
-.return-btn:disabled {
-  background-color: #94a3b8;
-  cursor: not-allowed;
-}
-
-.borrow-record-table th {
-  background-color: #f2f2f2;
-  font-weight: 600;
-  color: #333;
-}
-
-.borrow-record-table tr:hover {
-  background-color: #f8f9fa;
-}
-
-/* 逾期记录样式 */
-.overdue {
-  color: #ef4444;
-  font-weight: 500;
-}
-
-/* 状态文本颜色 */
-.text-success {
-  color: #16a34a;
-}
-
-.text-danger {
-  color: #ef4444;
-}
-
-.text-warning {
-  color: #eab308;
-}
-
-/* 响应式布局 - 适配Windows PC端主流分辨率 */
-@media (max-width: 1366px) {
-  .container {
-    padding: 15px;
-  }
-  
-  .borrow-record-table th,
-  .borrow-record-table td {
-    padding: 10px 12px;
-    font-size: 13px;
-  }
-}
-
-@media (max-width: 1024px) {
-  .table-section {
-    width: 100%;
-  }
-  
-  .borrow-record-table {
-    font-size: 12px;
-  }
-  
-  .borrow-record-table th,
-  .borrow-record-table td {
-    padding: 8px 10px;
-  }
-}
-
-/* 加载状态样式 */
-.loading-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
-  min-height: 200px;
-}
-
-.loading-spinner {
-  width: 30px;
-  height: 30px;
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #3498db;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 15px;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.loading-container p {
-  color: #666;
-  font-size: 14px;
-}
-
-/* 分页控件样式 */
-.pagination-container {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 20px;
-  padding: 15px 0;
-  border-top: 1px solid #e5e7eb;
-}
-
-.pagination-info {
-  font-size: 14px;
-  color: #666;
-}
-
-.pagination-buttons {
-  display: flex;
-  gap: 8px;
-}
-
-.page-btn {
-  padding: 8px 16px;
-  border: 1px solid #d1d5db;
-  background-color: white;
-  color: #374151;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.2s;
-}
-
-.page-btn:hover:not(:disabled) {
-  background-color: #f3f4f6;
-  border-color: #9ca3af;
-}
-
-.page-btn:disabled {
-  background-color: #f8f9fa;
-  color: #9ca3af;
-  cursor: not-allowed;
-  border-color: #e5e7eb;
-}
-
-/* 空数据状态样式 */
-.empty-row {
-  text-align: center;
-  background-color: #f8f9fa;
-}
-
-.empty-message {
-  font-size: 14px;
-  color: #666;
-  padding: 30px 0;
-}
-
-/* 禁用状态样式 */
-.filter-select:disabled {
-  background-color: #f8f9fa;
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-/* 模态框样式 */
+/* 保留必要的模态框样式 */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -828,109 +746,74 @@ export default {
 .modal-content {
   background-color: white;
   border-radius: 8px;
-  width: 400px;
-  max-width: 90%;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .modal-header {
-  padding: 20px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
   border-bottom: 1px solid #e5e7eb;
 }
 
-.modal-header h3 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #333;
-}
-
 .modal-body {
-  padding: 24px;
-}
-
-.form-group {
-  margin-bottom: 0;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 8px;
-  font-weight: 500;
-  color: #333;
-}
-
-.form-control {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-  transition: border-color 0.2s;
-  box-sizing: border-box;
-}
-
-.form-control:focus {
-  outline: none;
-  border-color: #3498db;
-  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+  padding: 20px;
 }
 
 .modal-footer {
-  padding: 16px 24px;
-  border-top: 1px solid #e5e7eb;
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
+  gap: 10px;
+  padding: 15px 20px;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* 逾期行高亮 */
+.overdue-row {
+  background-color: #fef2f2 !important;
+}
+
+.overdue-row:hover {
+  background-color: #fee2e2 !important;
+}
+
+/* 表格悬停效果 */
+.table-hover-row:hover {
+  background-color: #f9fafb;
+}
+
+.book-info {
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 6px;
+  margin-top: 15px;
+  border-left: 4px solid #2563eb;
+}
+
+.overdue-warning {
+  color: #dc3545 !important;
+  font-weight: 600 !important;
 }
 
 .btn {
   padding: 8px 16px;
   border: none;
   border-radius: 4px;
-  font-size: 14px;
   cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-primary {
-  background-color: #3498db;
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background-color: #2980b9;
-}
-
-.btn-primary:disabled {
-  background-color: #94a3b8;
-  cursor: not-allowed;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .btn-secondary {
-  background-color: #e5e7eb;
-  color: #374151;
+  background-color: #6c757d;
+  color: white;
 }
 
-.btn-secondary:hover {
-  background-color: #d1d5db;
-}
-
-/* 图书信息显示区域 */
-.book-info {
-  background-color: #f8f9fa;
-  padding: 15px;
-  border-radius: 4px;
-  margin-top: 15px;
-}
-
-.book-info p {
-  margin: 8px 0;
-  font-size: 14px;
-}
-
-.overdue-warning {
-  color: #ef4444;
-  font-weight: 500;
+.btn-primary {
+  background-color: #2563eb;
+  color: white;
 }
 </style>

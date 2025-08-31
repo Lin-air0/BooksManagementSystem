@@ -22,7 +22,7 @@ async function query(sql, params = []) {
  * /api/readers:
  *   get:
  *     summary: 获取读者列表
- *     description: 获取所有读者信息，支持分页
+ *     description: 获取所有读者信息，支持分页和搜索
  *     parameters:
  *       - name: page
  *         in: query
@@ -34,11 +34,21 @@ async function query(sql, params = []) {
  *         description: 每页数量
  *         required: false
  *         schema: { type: 'integer', default: 10 }
- *       - name: keyword
+ *       - name: name
  *         in: query
- *         description: 搜索关键词（姓名、邮箱、电话）
+ *         description: 按姓名搜索
  *         required: false
  *         schema: { type: 'string' }
+ *       - name: type
+ *         in: query
+ *         description: 按类型搜索
+ *         required: false
+ *         schema: { type: 'string' }
+ *       - name: reader_id
+ *         in: query
+ *         description: 按读者ID搜索
+ *         required: false
+ *         schema: { type: 'integer' }
  *     responses:
  *       200:
  *         description: 查询成功
@@ -81,14 +91,44 @@ router.get('/', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const pageSize = parseInt(req.query.pageSize) || 10;
-    const keyword = req.query.keyword || '';
-    
+    const name = req.query.name || '';
+    const type = req.query.type || '';
+    const reader_id = req.query.reader_id || '';
+
     let sql = 'SELECT * FROM readers';
+    let countSql = 'SELECT COUNT(*) as total FROM readers';
     const params = [];
+    const countParams = [];
+    const whereConditions = [];
+
+    // 构建查询条件
+    if (name) {
+      whereConditions.push('name LIKE ?');
+      params.push(`%${name}%`);
+      countParams.push(`%${name}%`);
+    }
     
-    if (keyword) {
-      sql += ' WHERE name LIKE ? OR email LIKE ? OR phone LIKE ?';
-      params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
+    if (type) {
+      whereConditions.push('type = ?');
+      params.push(type);
+      countParams.push(type);
+    }
+    
+    if (reader_id) {
+      // 确保reader_id是数字
+      const readerIdNum = parseInt(reader_id);
+      if (!isNaN(readerIdNum)) {
+        whereConditions.push('reader_id = ?');
+        params.push(readerIdNum);
+        countParams.push(readerIdNum);
+      }
+    }
+    
+    // 添加WHERE条件
+    if (whereConditions.length > 0) {
+      const whereClause = ' WHERE ' + whereConditions.join(' AND ');
+      sql += whereClause;
+      countSql += whereClause;
     }
     
     // 添加分页 - 修复MySQL 9.x兼容性问题
@@ -105,14 +145,6 @@ router.get('/', async (req, res) => {
     const readers = await query(sql, params);
     
     // 获取总条数
-    let countSql = 'SELECT COUNT(*) as total FROM readers';
-    const countParams = [];
-    
-    if (keyword) {
-      countSql += ' WHERE name LIKE ? OR email LIKE ? OR phone LIKE ?';
-      countParams.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
-    }
-    
     const countResult = await query(countSql, countParams);
     const total = countResult[0].total;
     
@@ -127,26 +159,11 @@ router.get('/', async (req, res) => {
       msg: '查询成功'
     });
   } catch (error) {
-    console.error('更新读者失败:', error);
-    let errorMsg = '更新读者失败';
-    
-    // 处理数据库错误
-    if (error.code === 'ER_DUP_ENTRY') {
-      if (error.sqlMessage.includes('student_id')) {
-        errorMsg = '学号/工号已存在，请使用其他学号';
-      } else if (error.sqlMessage.includes('email')) {
-        errorMsg = '邮箱已存在，请使用其他邮箱';
-      }
-    } else if (error.code === 'ER_NO_REFERENCED_ROW_2') {
-      errorMsg = '读者分类无效，请选择正确的分类';
-    } else {
-      errorMsg = '更新读者失败：' + (error.message || '未知错误');
-    }
-    
+    console.error('查询读者失败:', error);
     res.status(500).json({
       code: 500,
       data: null,
-      msg: errorMsg
+      msg: '查询失败，请稍后重试'
     });
   }
 });

@@ -27,51 +27,71 @@ api.interceptors.request.use(
   }
 );
 
-  // 响应拦截器
-  api.interceptors.response.use(
-    response => {
-      // 统一处理API响应
-      console.log('API响应成功:', {
-        status: response.status,
-        data: response.data,
-        config: response.config
-      });
-      
-      // 处理后端统一响应格式 {code, data, msg}
-      if (response.data && typeof response.data.code !== 'undefined') {
-        if (response.data.code === 0 || response.data.code === 200) {
-          return response.data;
-        } else {
-          console.error('API业务错误:', response.data);
-          return Promise.reject(new Error(response.data.msg || '业务处理失败'));
-        }
+// 响应拦截器
+api.interceptors.response.use(
+  response => {
+    // 统一处理API响应
+    console.log('API响应成功:', {
+      status: response.status,
+      data: response.data,
+      config: response.config
+    });
+    
+    // 处理后端统一响应格式 {code, data, msg}
+    if (response.data && typeof response.data.code !== 'undefined') {
+      if (response.data.code === 0 || response.data.code === 200) {
+        return response.data;
+      } else {
+        console.error('API业务错误:', response.data);
+        return Promise.reject(new Error(response.data.msg || '业务处理失败'));
       }
-      // 处理统计分析API的特殊格式 {success, data, message}
-      else if (response.data && typeof response.data.success !== 'undefined') {
-        if (response.data.success) {
-          return response.data;
-        } else {
-          console.error('API业务错误:', response.data);
-          return Promise.reject(new Error(response.data.message || '业务处理失败'));
-        }
-      }
-      // 直接返回数据
-      return response.data;
-    },
-    error => {
-      // 对响应错误做点什么
-      console.error('API请求错误:', {
-        message: error.message,
-        response: error.response ? {
-          status: error.response.status,
-          statusText: error.response.statusText,
-          data: error.response.data
-        } : '无响应',
-        config: error.config
-      });
-      return Promise.reject(error);
     }
-  );
+    // 处理统计分析API的特殊格式 {success, data, message}
+    else if (response.data && typeof response.data.success !== 'undefined') {
+      if (response.data.success) {
+        // 统一格式为 {code: 200, data, msg} 以保持一致性
+        return {
+          code: 200,
+          data: response.data.data,
+          msg: response.data.message || '操作成功'
+        };
+      } else {
+        console.error('API业务错误:', response.data);
+        return Promise.reject(new Error(response.data.message || '业务处理失败'));
+      }
+    }
+    // 直接返回数据并包装成统一格式
+    return {
+      code: 200,
+      data: response.data,
+      msg: '操作成功'
+    };
+  },
+  error => {
+    // 对响应错误做点什么
+    console.error('API请求错误:', {
+      message: error.message,
+      response: error.response ? {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data
+      } : '无响应',
+      config: error.config
+    });
+    
+    // 统一错误处理格式
+    if (error.response && error.response.data) {
+      const errorData = error.response.data;
+      if (typeof errorData.code !== 'undefined') {
+        return Promise.reject(new Error(errorData.msg || '业务处理失败'));
+      } else if (typeof errorData.success !== 'undefined') {
+        return Promise.reject(new Error(errorData.message || '业务处理失败'));
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 // 图书相关API - 与后端v2.2.0规范完全一致
 export const bookAPI = {
@@ -160,8 +180,15 @@ export const readerAPI = {
 
 // 统计相关API - 根据后端实际接口配置（已修正）
 export const statisticsAPI = {
-  // 获取借阅统计 - 修正为正确的后端路径
-  getBorrowStats: () => api.get('/statistics/monthly'),
+  // 获取借阅统计 - 修正为正确的后端路径，添加必要的参数
+  getBorrowStats: (params = {}) => {
+    // 如果没有提供year和month参数，使用当前年月
+    const now = new Date();
+    const year = params.year || now.getFullYear();
+    const month = params.month || (now.getMonth() + 1);
+    
+    return api.get('/statistics/monthly', { params: { year, month } });
+  },
   // 获取热门图书 - 保持原有接口兼容性
   getPopularBooks: (limit = 10) => api.get('/statistics/topBooks', { params: { limit, period: 'month' } }),
   // 获取月度统计

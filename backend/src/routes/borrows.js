@@ -561,6 +561,10 @@ router.get('/', async (req, res) => {
     const reader_id = req.query.reader_id;
     const is_overdue = req.query.is_overdue === 'true';
     const not_overdue = req.query.not_overdue === 'true';
+    // 添加搜索参数
+    const bookName = req.query.bookName;
+    const readerName = req.query.readerName;
+    const borrowDate = req.query.borrowDate;
 
     // 参数验证
     if (page < 1 || pageSize < 1 || pageSize > 100) {
@@ -596,6 +600,22 @@ router.get('/', async (req, res) => {
     if (not_overdue) {
       whereConditions.push('b.status = ? AND b.due_date >= NOW()');
       params.push('borrowed');
+    }
+
+    // 处理搜索条件
+    if (bookName) {
+      whereConditions.push('bk.title LIKE ?');
+      params.push(`%${bookName}%`);
+    }
+
+    if (readerName) {
+      whereConditions.push('r.name LIKE ?');
+      params.push(`%${readerName}%`);
+    }
+
+    if (borrowDate) {
+      whereConditions.push('DATE(b.borrow_date) = ?');
+      params.push(borrowDate);
     }
 
     const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';

@@ -1,46 +1,110 @@
 <template>
   <div class="dashboard-container">
-    <div class="dashboard-header">
-      <h1>图书管理系统仪表盘</h1>
-    </div>
+    <!-- 页面标题 -->
+    <h1 class="text-xl font-semibold mb-6">仪表盘</h1>
     
-    <!-- 加载状态 -->
-    <div v-if="isLoading" class="loading-container">
-      <div class="loading-spinner"></div>
-      <p>数据加载中...</p>
-    </div>
-    
-    <div v-else>
-      <!-- 统计卡片区域 -->
-      <div class="stats-cards">
-        <div class="stat-card">
-          <div class="stat-icon book-icon"></div>
-          <div class="stat-content">
-            <div class="stat-title">总图书数</div>
-            <div class="stat-value">{{ totalBooks }}</div>
-          </div>
+    <!-- 统计卡片区域 -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+    <!-- 总图书数 -->
+    <div class="bg-white rounded-lg border border-borderLight p-5 card-shadow">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-textSecondary text-sm">总图书数</p>
+          <p class="text-2xl font-semibold mt-1">{{ totalBooks }}</p>
         </div>
-        <div class="stat-card">
-          <div class="stat-icon borrow-icon"></div>
-          <div class="stat-content">
-            <div class="stat-title">在借图书数</div>
-            <div class="stat-value">{{ borrowedBooks }}</div>
-          </div>
+        <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+          <i class="fa fa-book"></i>
         </div>
       </div>
+    </div>
     
-    <!-- 可视化图表区 -->
-    <div class="charts-container">
-      <div class="chart-section">
-        <div class="chart-title">图书分类占比</div>
-        <div id="bookCategoryChart" class="chart"></div>
-      </div>
-      <div class="chart-section">
-        <div class="chart-title">{{ trendChartTitle }}</div>
-        <div id="borrowTrendChart" class="chart"></div>
+    <!-- 在借数 -->
+    <div class="bg-white rounded-lg border border-borderLight p-5 card-shadow">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-textSecondary text-sm">在借数</p>
+          <p class="text-2xl font-semibold mt-1">{{ borrowedBooks }}</p>
+        </div>
+        <div class="w-10 h-10 rounded-full bg-primaryLight/10 flex items-center justify-center text-primaryLight">
+          <i class="fa fa-arrow-circle-right"></i>
+        </div>
       </div>
     </div>
-    </div> <!-- 闭合v-else的div -->
+    
+    <!-- 逾期数 -->
+    <div class="bg-white rounded-lg border border-borderLight p-5 card-shadow">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-textSecondary text-sm">逾期数</p>
+          <p class="text-2xl font-semibold mt-1 text-danger">{{ overdueBooks }}</p>
+        </div>
+        <div class="w-10 h-10 rounded-full bg-danger/10 flex items-center justify-center text-danger">
+          <i class="fa fa-exclamation-triangle"></i>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 可借数 -->
+    <div class="bg-white rounded-lg border border-borderLight p-5 card-shadow">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-textSecondary text-sm">可借数</p>
+          <p class="text-2xl font-semibold mt-1 text-success">{{ availableBooks }}</p>
+        </div>
+        <div class="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center text-success">
+          <i class="fa fa-check-circle"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 图表预览区域 -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <!-- 借阅趋势图 -->
+    <div class="bg-white rounded-lg border border-borderLight p-5 card-shadow h-[400px]">
+      <h2 class="text-lg font-semibold mb-4">借阅趋势图</h2>
+      <div class="h-[calc(100%-2rem)] relative">
+        <div
+          id="borrowTrendChart"
+          ref="borrowTrendChart"
+          class="w-full h-full"
+          style="min-height: 320px;"
+        ></div>
+        <div v-if="isLoading" class="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
+          <span class="text-primary">加载中...</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 图书分类分布 -->
+    <div class="bg-white rounded-lg border border-borderLight p-5 card-shadow h-[400px]">
+      <h2 class="text-lg font-semibold mb-4">图书分类分布</h2>
+      <div class="h-[calc(100%-2rem)] relative">
+        <div
+          id="bookCategoryChart"
+          ref="bookCategoryChart"
+          class="w-full h-full"
+          style="min-height: 320px;"
+        ></div>
+        <div v-if="isLoading" class="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
+          <span class="text-primary">加载中...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 快速操作区域 -->
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <button class="btn-primary" @click="goToAddBook">
+      <i class="fa fa-plus mr-2"></i>添加图书
+    </button>
+    <button class="btn-secondary" @click="goToReaderRegister">
+      <i class="fa fa-user-plus mr-2"></i>读者注册
+    </button>
+    <button class="btn-secondary" @click="goToBorrowRecord">
+      <i class="fa fa-search mr-2"></i>借阅记录查询
+    </button>
+  </div>
   </div>
 </template>
 
@@ -61,6 +125,8 @@ export default {
       // 统计数据
       totalBooks: 0,
       borrowedBooks: 0,
+      overdueBooks: 0,
+      availableBooks: 0,
       // 图表数据
       bookCategoryData: {
         legend: [],
@@ -86,8 +152,15 @@ export default {
     };
   },
   mounted() {
-    // 从后端获取数据
-    this.fetchDashboardData();
+    // 从后端获取数据并初始化图表
+    this.$nextTick(() => {
+      this.fetchDashboardData().then(() => {
+        // 确保DOM已完全渲染后再初始化图表
+        this.$nextTick(() => {
+          this.initCharts();
+        });
+      });
+    });
     
     // 监听窗口大小变化，重新调整图表尺寸
     window.addEventListener('resize', this.handleResize);
@@ -95,6 +168,16 @@ export default {
   beforeDestroy() {
     // 移除窗口大小变化监听器
     window.removeEventListener('resize', this.handleResize);
+    
+    // 销毁图表实例
+    if (this.bookCategoryChart) {
+      this.bookCategoryChart.dispose();
+      this.bookCategoryChart = null;
+    }
+    if (this.borrowTrendChart) {
+      this.borrowTrendChart.dispose();
+      this.borrowTrendChart = null;
+    }
   },
   methods: {
     /**
@@ -113,9 +196,13 @@ export default {
         
         // 更新统计数据 - 使用后端标准响应格式
         this.totalBooks = booksResponse.data.total || booksResponse.data.list?.length || 0;
-        // 计算在借图书数量（状态为borrowed的记录）
+        // 计算在借图书数量和逾期数量
         const borrowedRecords = borrowsResponse.data.list || borrowsResponse.data || [];
         this.borrowedBooks = borrowedRecords.filter(record => record.status === 'borrowed').length;
+        this.overdueBooks = borrowedRecords.filter(record => record.status === 'overdue').length;
+        
+        // 计算可借数量（总图书数 - 在借数）
+        this.availableBooks = Math.max(0, this.totalBooks - this.borrowedBooks);
         
         // 【第2阶段更新】使用新的分类统计API数据
         if (categoriesResponse.success && categoriesResponse.data) {
@@ -146,6 +233,27 @@ export default {
           this.updateCharts();
         });
       }
+    },
+    
+    /**
+     * 跳转到添加图书页面
+     */
+    goToAddBook() {
+      this.$router.push('/book-list');
+    },
+    
+    /**
+     * 跳转到读者注册页面
+     */
+    goToReaderRegister() {
+      this.$router.push('/reader-manage');
+    },
+    
+    /**
+     * 跳转到借阅记录查询页面
+     */
+    goToBorrowRecord() {
+      this.$router.push('/borrow-record');
     },
     
     /**
@@ -297,6 +405,8 @@ export default {
         this.totalBooks = booksResponse.data.total || booksResponse.data.length || 0;
         const borrowedRecords = borrowsResponse.data.list || borrowsResponse.data || [];
         this.borrowedBooks = borrowedRecords.filter(record => record.status === 'borrowed').length;
+        this.overdueBooks = borrowedRecords.filter(record => record.status === 'overdue').length;
+        this.availableBooks = Math.max(0, this.totalBooks - this.borrowedBooks);
         
         this.processBookCategoryData(booksResponse.data.list);
         await this.fetchLegacyTrendData();
@@ -349,6 +459,8 @@ export default {
     useDefaultData() {
       this.totalBooks = 27; // 模拟数据
       this.borrowedBooks = 8; // 模拟数据
+      this.overdueBooks = 3; // 模拟数据
+      this.availableBooks = 19; // 模拟数据
       
       // 默认分类数据
       this.bookCategoryData = {
@@ -511,28 +623,6 @@ export default {
     },
     
     /**
-     * 更新图表数据
-     */
-    updateCharts() {
-      if (this.bookCategoryChart) {
-        this.bookCategoryChart.setOption({
-          legend: {
-            data: this.bookCategoryData.legend
-          },
-          series: this.bookCategoryData.series
-        });
-      }
-      
-      if (this.borrowTrendChart) {
-        this.borrowTrendChart.setOption({
-          xAxis: this.borrowTrendData.xAxis,
-          yAxis: this.borrowTrendData.yAxis,
-          series: this.borrowTrendData.series
-        });
-      }
-    },
-    
-    /**
      * 初始化ECharts图表
      */
     initCharts() {
@@ -650,182 +740,50 @@ export default {
       if (this.borrowTrendChart) {
         this.borrowTrendChart.resize();
       }
+    },
+    
+    /**
+     * 更新图表数据
+     */
+    updateCharts() {
+      // 更新分类饼图
+      if (this.bookCategoryChart && this.bookCategoryData.series) {
+        this.bookCategoryChart.setOption({
+          legend: {
+            data: this.bookCategoryData.legend
+          },
+          series: this.bookCategoryData.series
+        });
+      }
+      
+      // 更新趋势折线图
+      if (this.borrowTrendChart && this.borrowTrendData.series) {
+        this.borrowTrendChart.setOption({
+          title: {
+            text: this.trendChartTitle
+          },
+          xAxis: this.borrowTrendData.xAxis,
+          series: this.borrowTrendData.series
+        });
+      }
     }
   }
 };
 </script>
 
 <style scoped>
-/* 仪表盘容器样式 */
+/* 修复 ECharts 图表在 Tailwind CSS 环境下的显示问题 */
 .dashboard-container {
-  padding: 20px;
+  padding: 1rem;
   min-height: 100vh;
-  background-color: #f5f5f5;
+  background-color: #f9fafb;
 }
 
-/* 仪表盘头部样式 */
-.dashboard-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-  gap: 15px;
-}
-
-.dashboard-header h1 {
-  font-size: 24px;
-  color: #333;
-  margin: 0;
-}
-
-/* 加载状态样式 */
-.loading-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 400px;
-}
-
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid rgba(0, 0, 0, 0.1);
-  border-left-color: #409eff;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 15px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* 统计卡片容器样式 */
-.stats-cards {
-  display: flex;
-  gap: 20px;
-  margin-bottom: 30px;
-  flex-wrap: wrap;
-}
-
-/* 统计卡片样式 */
-.stat-card {
-  width: 250px;
-  background-color: #fff;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-/* 统计卡片图标样式 */
-.stat-icon {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  color: #fff;
-}
-
-/* 图书图标样式 */
-.book-icon {
-  background-color: #409eff;
-}
-
-/* 借阅图标样式 */
-.borrow-icon {
-  background-color: #67c23a;
-}
-
-/* 统计内容样式 */
-.stat-content {
-  flex: 1;
-}
-
-/* 统计标题样式 */
-.stat-title {
-  font-size: 14px;
-  color: #666;
-  margin-bottom: 5px;
-}
-
-/* 统计数值样式 */
-.stat-value {
-  font-size: 28px;
-  font-weight: bold;
-  color: #333;
-}
-
-/* 图表容器样式 */
-.charts-container {
-  display: flex;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-/* 单个图表区域样式 */
-.chart-section {
-  background-color: #fff;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-/* 饼图区域样式 */
-.chart-section:nth-child(1) {
-  width: 400px;
-}
-
-/* 折线图区域样式 */
-.chart-section:nth-child(2) {
-  flex: 1;
-  min-width: 600px;
-}
-
-/* 图表标题样式 */
-.chart-title {
-  font-size: 16px;
-  color: #333;
-  margin-bottom: 15px;
-  font-weight: bold;
-}
-
-/* 图表样式 */
-.chart {
-  width: 100%;
-  height: 400px;
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .stats-cards {
-    flex-direction: column;
-  }
-  
-  .charts-container {
-    flex-direction: column;
-  }
-  
-  .chart-section:nth-child(1),
-  .chart-section:nth-child(2) {
-    width: 100%;
-    min-width: auto;
-  }
-  
-  .chart {
-    height: 300px;
-  }
-  
-  .dashboard-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+#borrowTrendChart,
+#bookCategoryChart {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 300px;
+  display: block;
 }
 </style>

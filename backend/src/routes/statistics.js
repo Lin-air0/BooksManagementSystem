@@ -1,27 +1,23 @@
 // 统计分析相关路由
 const express = require('express');
 const router = express.Router();
-const mysql = require('mysql2/promise');
+const { pool } = require('../config/db.js');
 
-// 创建数据库连接池
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'bookadmin',
-  password: process.env.DB_PASSWORD || 'BookAdmin123!',
-  database: process.env.DB_NAME || 'book_management',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-});
-
-// 查询函数
+// 查询函数 - 使用连接而不是连接池
 async function query(sql, params = []) {
-  const connection = await pool.getConnection();
+  let connection;
   try {
+    console.log('执行SQL:', sql, '参数:', params);
+    connection = await pool.getConnection();
     const [results] = await connection.execute(sql, params);
     return results;
+  } catch (error) {
+    console.error('SQL执行错误:', error);
+    throw error;
   } finally {
-    connection.release();
+    if (connection) {
+      connection.release();
+    }
   }
 }
 
@@ -116,137 +112,27 @@ router.get('/monthly', async (req, res) => {
     });
     
     res.json({
-      success: true,
+      code: 200,
       data: {
         dates,
         borrow_counts,
         return_counts
-      }
+      },
+      msg: '查询成功'
     });
   } catch (error) {
     console.error('获取月度统计数据失败:', error);
     res.status(500).json({
-      success: false,
-      error: '获取统计数据失败，请稍后重试'
+      code: 500,
+      data: null,
+      msg: '获取统计数据失败，请稍后重试'
     });
   }
 });
 
-/**
- * @swagger
- * /api/statistics/categories:
- *   get:
- *     summary: 图书分类分布统计
- *     description: 获取图书分类分布数据，用于饼图展示
- *     responses:
- *       200:
- *         description: 查询成功
- *         content:
- *           application/json:
- *             schema:
- *               type: 'object'
- *               properties:
- *                 success: { type: 'boolean', example: true }
- *                 data:
- *                   type: 'array'
- *                   items:
- *                     type: 'object'
- *                     properties:
- *                       category_name: { type: 'string', example: '文学' }
- *                       book_count: { type: 'integer', example: 125 }
- *                       percentage: { type: 'number', example: 25.5 }
- *       500:
- *         description: 服务器错误
- *         content:
- *           application/json:
- *             schema:
- *               type: 'object'
- *               properties:
- *                 success: { type: 'boolean', example: false }
- *                 error: { type: 'string', example: '获取分类统计数据失败' }
- */
-router.get('/categories', async (req, res) => {
-  try {
-    // 获取图书分类分布统计
-    const sql = `
-      SELECT 
-        COALESCE(bc.name, '未分类') as category_name,
-        COUNT(b.book_id) as book_count
-      FROM books b
-      LEFT JOIN book_categories bc ON b.category_id = bc.category_id
-      GROUP BY b.category_id, bc.name
-      ORDER BY book_count DESC
-    `;
-    
-    const results = await query(sql);
-    
-    // 计算总数和百分比
-    const totalBooks = results.reduce((sum, item) => sum + item.book_count, 0);
-    
-    const data = results.map(item => ({
-      category_name: item.category_name,
-      book_count: item.book_count,
-      percentage: totalBooks > 0 ? Math.round((item.book_count / totalBooks) * 100 * 10) / 10 : 0
-    }));
-    
-    res.json({
-      success: true,
-      data: data,
-      total_books: totalBooks
-    });
-    
-  } catch (error) {
-    console.error('获取图书分类统计失败:', error);
-    res.status(500).json({
-      success: false,
-      error: '获取分类统计数据失败，请稍后重试'
-    });
-  }
-});
 
-/**
- * @swagger
- * /api/statistics/borrows/monthly:
- *   get:
- *     summary: 月度借阅趋势统计
- *     description: 获取最近12个月的借阅趋势数据，用于折线图展示
- *     parameters:
- *       - name: months
- *         in: query
- *         description: 统计月份数量，默认12个月
- *         required: false
- *         schema: { type: 'integer', default: 12 }
- *     responses:
- *       200:
- *         description: 查询成功
- *         content:
- *           application/json:
- *             schema:
- *               type: 'object'
- *               properties:
- *                 success: { type: 'boolean', example: true }
- *                 data:
- *                   type: 'object'
- *                   properties:
- *                     months: 
- *                       type: 'array'
- *                       items: { type: 'string', example: '2024-01' }
- *                     borrow_counts:
- *                       type: 'array'
- *                       items: { type: 'integer', example: 45 }
- *                     return_counts:
- *                       type: 'array'
- *                       items: { type: 'integer', example: 42 }
- *       500:
- *         description: 服务器错误
- *         content:
- *           application/json:
- *             schema:
- *               type: 'object'
- *               properties:
- *                 success: { type: 'boolean', example: false }
- *                 error: { type: 'string', example: '获取月度趋势数据失败' }
- */
+
+
 /**
  * @swagger
  * /api/statistics/topBooks: 
@@ -309,8 +195,9 @@ router.get('/topBooks', async (req, res) => {
     // 参数校验
     if (!['week', 'month', 'quarter', 'year'].includes(period)) {
       return res.status(400).json({
-        success: false,
-        message: '参数 period 无效，有效值为：week/month/quarter/year'
+        code: 400,
+        data: null,
+        msg: '参数 period 无效，有效值为：week/month/quarter/year'
       });
     }
     
@@ -357,10 +244,9 @@ router.get('/topBooks', async (req, res) => {
       const results = await query(sql);
       
       res.json({
-        success: true,
+        code: 200,
         data: results,
-        period: period,
-        limit: clampedLimit
+        msg: '查询成功'
       });
     } catch (dbError) {
       // 捕获并处理数据库查询错误
@@ -368,22 +254,24 @@ router.get('/topBooks', async (req, res) => {
       // 检查是否是由于表不存在或数据为空导致的错误
       if (dbError.code === 'ER_NO_SUCH_TABLE' || dbError.code === 'ER_BAD_TABLE_ERROR') {
         return res.status(500).json({
-          success: false,
-          error: '数据库表不存在，请先初始化数据库'
+          code: 500,
+          data: null,
+          msg: '数据库表不存在，请先初始化数据库'
         });
       }
       // 返回更友好的错误信息
       res.status(500).json({
-        success: false,
-        error: '获取热门图书数据失败，请稍后重试',
-        details: process.env.NODE_ENV === 'development' ? dbError.message : undefined
+        code: 500,
+        data: null,
+        msg: '获取热门图书数据失败，请稍后重试'
       });
     }
   } catch (error) {
     console.error('获取热门图书数据失败:', error);
     res.status(500).json({
-      success: false,
-      error: '获取热门图书数据失败，请稍后重试'
+      code: 500,
+      data: null,
+      msg: '获取热门图书数据失败，请稍后重试'
     });
   }
 });
@@ -402,7 +290,7 @@ router.get('/topBooks', async (req, res) => {
  *             schema:
  *               type: 'object'
  *               properties:
- *                 success: { type: 'boolean', example: true }
+ *                 code: { type: 'integer', example: 200 }
  *                 data:
  *                   type: 'array'
  *                   items:
@@ -413,6 +301,7 @@ router.get('/topBooks', async (req, res) => {
  *                       book_count: { type: 'integer', example: 25 }
  *                       total_stock: { type: 'integer', example: 150 }
  *                       available_stock: { type: 'integer', example: 120 }
+ *                 msg: { type: 'string', example: '查询成功' }
  *       500:
  *         description: 服务器错误
  *         content:
@@ -420,8 +309,9 @@ router.get('/topBooks', async (req, res) => {
  *             schema:
  *               type: 'object'
  *               properties:
- *                 success: { type: 'boolean', example: false }
- *                 error: { type: 'string', example: '获取分类统计数据失败' }
+ *                 code: { type: 'integer', example: 500 }
+ *                 data: { type: 'null' }
+ *                 msg: { type: 'string', example: '获取分类统计数据失败' }
  */
 router.get('/categories', async (req, res) => {
   try {
@@ -457,21 +347,16 @@ router.get('/categories', async (req, res) => {
     }));
     
     res.json({
-      success: true,
+      code: 200,  // 统一响应格式为code/data/msg
       data: categoriesWithPercentage,
-      summary: {
-        total_categories: results.length,
-        total_books: totalBooks,
-        total_stock: results.reduce((sum, item) => sum + parseInt(item.total_stock), 0),
-        available_stock: results.reduce((sum, item) => sum + parseInt(item.available_stock), 0)
-      }
+      msg: '查询成功'
     });
   } catch (error) {
     console.error('获取图书分类统计失败:', error);
     res.status(500).json({
-      success: false,
-      error: '获取分类统计数据失败，请稍后重试',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      code: 500,
+      data: [],
+      msg: '获取分类统计数据失败，请稍后重试'
     });
   }
 });
@@ -486,13 +371,9 @@ router.get('/categories', async (req, res) => {
  *       - name: year
  *         in: query
  *         description: 年份（可选，默认为当前年份）
- *         required: false
- *         schema: { type: 'integer', example: 2024 }
  *       - name: months
  *         in: query
  *         description: 查询月份数（可选，默认为12个月）
- *         required: false
- *         schema: { type: 'integer', example: 6 }
  *     responses:
  *       200:
  *         description: 查询成功
@@ -501,7 +382,7 @@ router.get('/categories', async (req, res) => {
  *             schema:
  *               type: 'object'
  *               properties:
- *                 success: { type: 'boolean', example: true }
+ *                 code: { type: 'integer', example: 200 }
  *                 data:
  *                   type: 'object'
  *                   properties:
@@ -521,6 +402,7 @@ router.get('/categories', async (req, res) => {
  *                       type: 'array'
  *                       items: { type: 'integer' }
  *                       example: [3, 3, 4]
+ *                 msg: { type: 'string', example: '查询成功' }
  *       500:
  *         description: 服务器错误
  *         content:
@@ -528,8 +410,9 @@ router.get('/categories', async (req, res) => {
  *             schema:
  *               type: 'object'
  *               properties:
- *                 success: { type: 'boolean', example: false }
- *                 error: { type: 'string', example: '获取月度借阅趋势数据失败' }
+ *                 code: { type: 'integer', example: 500 }
+ *                 data: { type: 'null' }
+ *                 msg: { type: 'string', example: '获取月度借阅趋势数据失败' }
  */
 router.get('/borrows/monthly', async (req, res) => {
   try {
@@ -541,15 +424,17 @@ router.get('/borrows/monthly', async (req, res) => {
     
     if (isNaN(yearNum) || yearNum < 2020 || yearNum > 2030) {
       return res.status(400).json({
-        success: false,
-        message: '年份参数无效，应在2020-2030之间'
+        code: 400,
+        data: null,
+        msg: '年份参数无效，应在2020-2030之间'
       });
     }
     
     // 生成查询的月份范围
     const monthRanges = [];
+    const now = new Date();
     for (let i = monthsNum - 1; i >= 0; i--) {
-      const targetDate = new Date(yearNum, new Date().getMonth() - i, 1);
+      const targetDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const year = targetDate.getFullYear();
       const month = targetDate.getMonth() + 1;
       monthRanges.push({
@@ -572,22 +457,12 @@ router.get('/borrows/monthly', async (req, res) => {
           ELSE 0 
         END) as overdue_count
       FROM borrows
-      WHERE (YEAR(borrow_date) = ? AND MONTH(borrow_date) BETWEEN ? AND ?)
-         OR (YEAR(borrow_date) = ? AND MONTH(borrow_date) BETWEEN ? AND ?)
+      WHERE borrow_date >= DATE_SUB(NOW(), INTERVAL ? MONTH)
       GROUP BY YEAR(borrow_date), MONTH(borrow_date)
       ORDER BY year, month
     `;
     
-    // 构建查询参数，支持跨年查询
-    const startMonth = monthRanges[0];
-    const endMonth = monthRanges[monthRanges.length - 1];
-    
-    const queryParams = [
-      startMonth.year, startMonth.month, 12,
-      endMonth.year, 1, endMonth.month
-    ];
-    
-    const results = await query(sql, queryParams);
+    const results = await query(sql, [monthsNum]);
     
     // 创建结果映射
     const resultMap = {};
@@ -620,26 +495,26 @@ router.get('/borrows/monthly', async (req, res) => {
     });
     
     res.json({
-      success: true,
+      code: 200,
       data: {
         labels,
         borrow_counts: borrowCounts,
         return_counts: returnCounts,
         overdue_counts: overdueCounts
       },
-      summary: {
-        total_borrows: borrowCounts.reduce((sum, count) => sum + count, 0),
-        total_returns: returnCounts.reduce((sum, count) => sum + count, 0),
-        total_overdue: overdueCounts.reduce((sum, count) => sum + count, 0),
-        period: `${labels[0]} 至 ${labels[labels.length - 1]}`
-      }
+      msg: '查询成功'
     });
   } catch (error) {
     console.error('获取月度借阅趋势失败:', error);
     res.status(500).json({
-      success: false,
-      error: '获取月度借阅趋势数据失败，请稍后重试',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      code: 500,
+      data: {
+        labels: [],
+        borrow_counts: [],
+        return_counts: [],
+        overdue_counts: []
+      },
+      msg: '获取月度借阅趋势数据失败，请稍后重试'
     });
   }
 });
@@ -669,7 +544,7 @@ router.get('/borrows/monthly', async (req, res) => {
  *             schema:
  *               type: 'object'
  *               properties:
- *                 success: { type: 'boolean', example: true }
+ *                 code: { type: 'integer', example: 200 }
  *                 data:
  *                   type: 'array'
  *                   items:
@@ -682,6 +557,7 @@ router.get('/borrows/monthly', async (req, res) => {
  *                       borrow_count: { type: 'integer', example: 25 }
  *                       available: { type: 'integer', example: 8 }
  *                       stock: { type: 'integer', example: 10 }
+ *                 msg: { type: 'string', example: '查询成功' }
  *       400:
  *         description: 参数错误
  *         content:
@@ -689,8 +565,9 @@ router.get('/borrows/monthly', async (req, res) => {
  *             schema:
  *               type: 'object'
  *               properties:
- *                 success: { type: 'boolean', example: false }
- *                 message: { type: 'string', example: '参数 period 无效' }
+ *                 code: { type: 'integer', example: 400 }
+ *                 data: { type: 'null' }
+ *                 msg: { type: 'string', example: '参数 period 无效' }
  *       500:
  *         description: 服务器错误
  *         content:
@@ -698,92 +575,136 @@ router.get('/borrows/monthly', async (req, res) => {
  *             schema:
  *               type: 'object'
  *               properties:
- *                 success: { type: 'boolean', example: false }
- *                 error: { type: 'string', example: '获取热门图书数据失败' }
+ *                 code: { type: 'integer', example: 500 }
+ *                 data: { type: 'null' }
+ *                 msg: { type: 'string', example: '获取热门图书数据失败' }
  */
-// 测试接口 - 简单的图书统计
-router.get('/test/simple', async (req, res) => {
-  try {
-    const sql = 'SELECT COUNT(*) as total_books FROM books';
-    const results = await query(sql);
-    
-    res.json({
-      success: true,
-      data: {
-        total_books: results[0].total_books,
-        test_status: 'API连接正常'
-      }
-    });
-  } catch (error) {
-    console.error('测试接口错误:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// 简化版热门图书API - 直接使用pool
 router.get('/books/popular', async (req, res) => {
   try {
-    const { limit = 10 } = req.query;
-    const limitNum = parseInt(limit) || 10;
+    const { limit = 10, period = 'all' } = req.query;
+    const limitNum = Math.min(Math.max(parseInt(limit) || 10, 1), 50);
     
-    console.log('开始查询热门图书，limit:', limitNum);
+    // 参数校验
+    if (!['month', 'quarter', 'year', 'all'].includes(period)) {
+      return res.status(400).json({
+        code: 400,
+        data: [],
+        msg: '参数 period 无效，只支持: month, quarter, year, all'
+      });
+    }
     
-    // 直接使用pool.execute，避免query函数问题
-    const sql = `
-      SELECT 
-        book_id,
-        title,
-        author,
-        publisher,
-        available,
-        stock
-      FROM books
-      ORDER BY book_id DESC
-    `;
+    console.log('开始查询热门图书，limit:', limitNum, 'period:', period);
+    
+    // 根据period构建不同的SQL查询 - 直接在SQL中嵌入limit值
+    let sql = '';
+    
+    switch (period) {
+      case 'month':
+        sql = `
+          SELECT 
+            b.book_id,
+            b.title,
+            b.author,
+            bc.name as category_name,
+            b.available,
+            b.stock,
+            COUNT(br.borrow_id) as borrow_count
+          FROM books b
+          LEFT JOIN book_categories bc ON b.category_id = bc.category_id
+          LEFT JOIN borrows br ON b.book_id = br.book_id 
+            AND br.borrow_date >= DATE_SUB(NOW(), INTERVAL 1 MONTH)
+          GROUP BY b.book_id, b.title, b.author, bc.name, b.available, b.stock
+          ORDER BY borrow_count DESC, b.book_id ASC
+          LIMIT ${limitNum}
+        `;
+        break;
+      case 'quarter':
+        sql = `
+          SELECT 
+            b.book_id,
+            b.title,
+            b.author,
+            bc.name as category_name,
+            b.available,
+            b.stock,
+            COUNT(br.borrow_id) as borrow_count
+          FROM books b
+          LEFT JOIN book_categories bc ON b.category_id = bc.category_id
+          LEFT JOIN borrows br ON b.book_id = br.book_id 
+            AND br.borrow_date >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
+          GROUP BY b.book_id, b.title, b.author, bc.name, b.available, b.stock
+          ORDER BY borrow_count DESC, b.book_id ASC
+          LIMIT ${limitNum}
+        `;
+        break;
+      case 'year':
+        sql = `
+          SELECT 
+            b.book_id,
+            b.title,
+            b.author,
+            bc.name as category_name,
+            b.available,
+            b.stock,
+            COUNT(br.borrow_id) as borrow_count
+          FROM books b
+          LEFT JOIN book_categories bc ON b.category_id = bc.category_id
+          LEFT JOIN borrows br ON b.book_id = br.book_id 
+            AND br.borrow_date >= DATE_SUB(NOW(), INTERVAL 1 YEAR)
+          GROUP BY b.book_id, b.title, b.author, bc.name, b.available, b.stock
+          ORDER BY borrow_count DESC, b.book_id ASC
+          LIMIT ${limitNum}
+        `;
+        break;
+      default: // all
+        sql = `
+          SELECT 
+            b.book_id,
+            b.title,
+            b.author,
+            bc.name as category_name,
+            b.available,
+            b.stock,
+            COUNT(br.borrow_id) as borrow_count
+          FROM books b
+          LEFT JOIN book_categories bc ON b.category_id = bc.category_id
+          LEFT JOIN borrows br ON b.book_id = br.book_id
+          GROUP BY b.book_id, b.title, b.author, bc.name, b.available, b.stock
+          ORDER BY borrow_count DESC, b.book_id ASC
+          LIMIT ${limitNum}
+        `;
+        break;
+    }
     
     console.log('执行SQL:', sql);
-    const [allResults] = await pool.execute(sql);
-    console.log('查询结果数量:', allResults.length);
+    const results = await query(sql, []);
     
-    // 手动截取数量
-    const results = allResults.slice(0, limitNum);
-    
-    // 简化处理，不进行复杂的统计计算
-    const enrichedResults = results.map((book, index) => ({
+    // 处理结果，确保字段完整
+    const enrichedResults = results.map(book => ({
       book_id: book.book_id,
-      title: book.title,
-      author: book.author,
-      publisher: book.publisher,
-      available: book.available,
-      stock: book.stock,
-      borrow_count: Math.floor(Math.random() * 10), // 临时模拟数据
-      category_name: '计算机', // 临时硬编码
-      popularity_score: Math.floor(Math.random() * 10)
+      title: book.title || '未知图书',
+      author: book.author || '未知作者',
+      category_name: book.category_name || '未分类',
+      available: book.available !== undefined ? book.available : 0,
+      stock: book.stock !== undefined ? book.stock : 0,
+      borrow_count: book.borrow_count !== undefined ? book.borrow_count : 0
     }));
     
-    console.log('处理后的结果:', enrichedResults.length);
+    console.log('查询结果数量:', enrichedResults.length);
     
     res.json({
-      success: true,
+      code: 200,
       data: enrichedResults,
-      meta: {
-        count: enrichedResults.length,
-        total_books: allResults.length,
-        note: '简化版API，基础功能正常',
-        test_mode: true,
-        generated_at: new Date().toISOString()
-      }
+      msg: '查询成功'
     });
     
   } catch (error) {
     console.error('获取热门图书失败:', error);
+    // 添加更详细的错误信息
     res.status(500).json({
-      success: false,
-      error: error.message,
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      code: 500,
+      data: [],
+      msg: '获取热门图书数据失败，请稍后重试: ' + error.message
     });
   }
 });
@@ -808,7 +729,7 @@ router.get('/books/popular', async (req, res) => {
  *             schema:
  *               type: 'object'
  *               properties:
- *                 success: { type: 'boolean', example: true }
+ *                 code: { type: 'integer', example: 200 }
  *                 data:
  *                   type: 'array'
  *                   items:
@@ -820,6 +741,7 @@ router.get('/books/popular', async (req, res) => {
  *                       reader_count: { type: 'integer', example: 50 }
  *                       avg_borrows_per_reader: { type: 'number', example: 3.0 }
  *                       percentage: { type: 'number', example: 75.5 }
+ *                 msg: { type: 'string', example: '查询成功' }
  *       400:
  *         description: 参数错误
  *         content:
@@ -827,8 +749,9 @@ router.get('/books/popular', async (req, res) => {
  *             schema:
  *               type: 'object'
  *               properties:
- *                 success: { type: 'boolean', example: false }
- *                 message: { type: 'string', example: '参数 period 无效' }
+ *                 code: { type: 'integer', example: 400 }
+ *                 data: { type: 'null' }
+ *                 msg: { type: 'string', example: '参数 period 无效' }
  *       500:
  *         description: 服务器错误
  *         content:
@@ -836,8 +759,9 @@ router.get('/books/popular', async (req, res) => {
  *             schema:
  *               type: 'object'
  *               properties:
- *                 success: { type: 'boolean', example: false }
- *                 error: { type: 'string', example: '获取读者借阅分析数据失败' }
+ *                 code: { type: 'integer', example: 500 }
+ *                 data: { type: 'null' }
+ *                 msg: { type: 'string', example: '获取读者借阅分析数据失败' }
  */
 // 简化版读者借阅分析API - 修复字段问题
 router.get('/readers/borrows', async (req, res) => {
@@ -847,8 +771,9 @@ router.get('/readers/borrows', async (req, res) => {
     // 参数校验
     if (!['month', 'quarter', 'year', 'all'].includes(period)) {
       return res.status(400).json({
-        success: false,
-        message: '参数 period 无效，只支持: month, quarter, year, all'
+        code: 400,
+        data: [],
+        msg: '参数 period 无效，只支持: month, quarter, year, all'
       });
     }
     
@@ -906,22 +831,17 @@ router.get('/readers/borrows', async (req, res) => {
     }));
     
     res.json({
-      success: true,
+      code: 200,
       data: finalResults,
-      summary: {
-        total_borrows: totalBorrows,
-        total_active_readers: analysisResults.reduce((sum, item) => sum + item.reader_count, 0),
-        period: period,
-        generated_at: new Date().toISOString()
-      }
+      msg: '查询成功'
     });
     
   } catch (error) {
     console.error('获取读者借阅分析失败:', error);
     res.status(500).json({
-      success: false,
-      error: error.message,
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      code: 500,
+      data: [],
+      msg: '获取读者借阅分析数据失败，请稍后重试'
     });
   }
 });
@@ -956,7 +876,7 @@ router.get('/readers/borrows', async (req, res) => {
  *             schema:
  *               type: 'object'
  *               properties:
- *                 success: { type: 'boolean', example: true }
+ *                 code: { type: 'integer', example: 200 }
  *                 data:
  *                   type: 'array'
  *                   items:
@@ -970,6 +890,7 @@ router.get('/readers/borrows', async (req, res) => {
  *                       turnover_rate: { type: 'number', example: 2.5 }
  *                       utilization_rate: { type: 'number', example: 85.5 }
  *                       avg_borrow_days: { type: 'number', example: 15.3 }
+ *                 msg: { type: 'string', example: '查询成功' }
  *       400:
  *         description: 参数错误
  *         content:
@@ -977,8 +898,9 @@ router.get('/readers/borrows', async (req, res) => {
  *             schema:
  *               type: 'object'
  *               properties:
- *                 success: { type: 'boolean', example: false }
- *                 message: { type: 'string', example: '参数 period 无效' }
+ *                 code: { type: 'integer', example: 400 }
+ *                 data: { type: 'null' }
+ *                 msg: { type: 'string', example: '参数 period 无效' }
  *       500:
  *         description: 服务器错误
  *         content:
@@ -986,8 +908,9 @@ router.get('/readers/borrows', async (req, res) => {
  *             schema:
  *               type: 'object'
  *               properties:
- *                 success: { type: 'boolean', example: false }
- *                 error: { type: 'string', example: '获取库存周转率数据失败' }
+ *                 code: { type: 'integer', example: 500 }
+ *                 data: { type: 'null' }
+ *                 msg: { type: 'string', example: '获取库存周转率数据失败' }
  */
 // 简化版图书库存周转率API - 避免复杂查询
 router.get('/books/turnover', async (req, res) => {
@@ -1058,21 +981,17 @@ router.get('/books/turnover', async (req, res) => {
     };
     
     res.json({
-      success: true,
+      code: 200,
       data: enrichedResults,
-      summary: summary,
-      meta: {
-        note: '简化版API，基础功能正常',
-        test_mode: true
-      }
+      msg: '查询成功'
     });
     
   } catch (error) {
     console.error('获取图书库存周转率失败:', error);
     res.status(500).json({
-      success: false,
-      error: error.message,
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      code: 500,
+      data: null,
+      msg: error.message
     });
   }
 });
@@ -1112,7 +1031,7 @@ router.get('/books/turnover', async (req, res) => {
  *             schema:
  *               type: 'object'
  *               properties:
- *                 success: { type: 'boolean', example: true }
+ *                 code: { type: 'integer', example: 200 }
  *                 data:
  *                   type: 'object'
  *                   properties:
@@ -1132,6 +1051,7 @@ router.get('/books/turnover', async (req, res) => {
  *                             example: [45, 38, 52]
  *                           backgroundColor: { type: 'string', example: 'rgba(54, 162, 235, 0.2)' }
  *                           borderColor: { type: 'string', example: 'rgba(54, 162, 235, 1)' }
+ *                 msg: { type: 'string', example: '查询成功' }
  *       400:
  *         description: 参数错误
  *         content:
@@ -1139,8 +1059,9 @@ router.get('/books/turnover', async (req, res) => {
  *             schema:
  *               type: 'object'
  *               properties:
- *                 success: { type: 'boolean', example: false }
- *                 message: { type: 'string', example: '参数 range 无效' }
+ *                 code: { type: 'integer', example: 400 }
+ *                 data: { type: 'null' }
+ *                 msg: { type: 'string', example: '参数 range 无效' }
  *       500:
  *         description: 服务器错误
  *         content:
@@ -1148,8 +1069,9 @@ router.get('/books/turnover', async (req, res) => {
  *             schema:
  *               type: 'object'
  *               properties:
- *                 success: { type: 'boolean', example: false }
- *                 error: { type: 'string', example: '获取借阅趋势数据失败' }
+ *                 code: { type: 'integer', example: 500 }
+ *                 data: { type: 'null' }
+ *                 msg: { type: 'string', example: '获取借阅趋势数据失败' }
  */
 router.get('/borrows/trend', async (req, res) => {
   try {
@@ -1164,8 +1086,9 @@ router.get('/borrows/trend', async (req, res) => {
     const validRanges = ['week', 'month', 'quarter', 'year'];
     if (!validRanges.includes(range)) {
       return res.status(400).json({
-        success: false,
-        message: `参数 range 无效，只支持: ${validRanges.join(', ')}`
+        code: 400,
+        data: null,
+        msg: `参数 range 无效，只支持: ${validRanges.join(', ')}`
       });
     }
 
@@ -1316,28 +1239,20 @@ router.get('/borrows/trend', async (req, res) => {
     ];
 
     res.json({
-      success: true,
+      code: 200,
       data: {
         labels: labels,
         datasets: datasets
       },
-      meta: {
-        range: range,
-        count: countNum,
-        total_periods: labels.length,
-        total_borrows: borrowData.reduce((sum, val) => sum + val, 0),
-        total_returns: returnData.reduce((sum, val) => sum + val, 0),
-        total_overdue: overdueData.reduce((sum, val) => sum + val, 0),
-        generated_at: new Date().toISOString()
-      }
+      msg: '查询成功'
     });
 
   } catch (error) {
     console.error('获取借阅趋势分析失败:', error);
     res.status(500).json({
-      success: false,
-      error: error.message,
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      code: 500,
+      data: null,
+      msg: error.message
     });
   }
 });

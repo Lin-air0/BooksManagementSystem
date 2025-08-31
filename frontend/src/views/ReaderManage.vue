@@ -1,404 +1,406 @@
 <template>
-  <!-- 页面标题和操作按钮 -->
-  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-    <h1 class="text-xl font-semibold">读者管理</h1>
-    <div class="flex gap-2 self-end sm:self-auto">
-      <button 
-        @click="showImportDialog" 
-        class="bg-secondary text-textPrimary py-2 px-4 rounded-md font-medium hover:bg-gray-200 transition-colors"
-        :disabled="isLoading || isProcessingImport"
-      >
-        <i class="fa fa-upload mr-2"></i>
-        {{ isProcessingImport ? '导入中...' : '导入读者' }}
-      </button>
-      <button 
-        @click="openAddModal" 
-        class="bg-primary text-white py-2 px-4 rounded-md font-medium hover:bg-primary/90 transition-colors"
-        :disabled="isLoading"
-      >
-        <i class="fa fa-user-plus mr-2"></i>添加读者
-      </button>
-    </div>
-  </div>
-  
-  <!-- 搜索和筛选区域 -->
-  <div class="bg-white rounded-lg border border-borderLight p-5 card-shadow mb-6">
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div>
-        <label class="block text-sm text-textSecondary mb-1">读者姓名</label>
-        <div class="relative">
-          <input 
-            type="text" 
-            v-model="searchParams.name"
-            placeholder="请输入读者姓名" 
-            class="w-full px-3 py-2 border border-borderMedium rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-          >
-        </div>
-      </div>
-      <div>
-        <label class="block text-sm text-textSecondary mb-1">读者类型</label>
-        <select 
-          v-model="searchParams.type"
-          class="w-full px-3 py-2 border border-borderMedium rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-        >
-          <option value="">全部类型</option>
-          <option value="学生">学生</option>
-          <option value="教师">教师</option>
-          <option value="职工">职工</option>
-          <option value="其他">其他</option>
-        </select>
-      </div>
-      <div>
-        <label class="block text-sm text-textSecondary mb-1">读者ID</label>
-        <div class="relative">
-          <input 
-            type="text" 
-            v-model="searchParams.readerId"
-            placeholder="请输入读者ID" 
-            class="w-full px-3 py-2 border border-borderMedium rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-          >
-        </div>
-      </div>
-    </div>
-    
-    <div class="flex justify-end mt-4">
-      <button 
-        @click="resetSearch"
-        class="bg-secondary text-textPrimary py-2 px-4 rounded-md font-medium hover:bg-gray-200 transition-colors mr-2"
-        :disabled="isLoading"
-      >
-        <i class="fa fa-refresh mr-2"></i>重置
-      </button>
-      <button 
-        @click="searchReaders"
-        class="bg-primary text-white py-2 px-4 rounded-md font-medium hover:bg-primary/90 transition-colors"
-        :disabled="isLoading"
-      >
-        <i class="fa fa-search mr-2"></i>搜索
-      </button>
-    </div>
-  </div>
-  
-  <!-- 加载状态 -->
-  <div v-if="isLoading" class="bg-white rounded-lg border border-borderLight p-8 card-shadow text-center">
-    <div class="flex flex-col items-center">
-      <div class="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-      <p class="text-textSecondary">正在加载读者数据...</p>
-    </div>
-  </div>
-  
-  <!-- 无结果提示 -->
-  <div v-if="!isLoading && readers.length === 0" class="bg-white rounded-lg border border-borderLight p-8 card-shadow text-center">
-    <p class="text-textSecondary">暂无读者数据</p>
-  </div>
-
-  <!-- 读者列表 -->
-  <div v-if="!isLoading && readers.length > 0" class="bg-white rounded-lg border border-borderLight card-shadow overflow-hidden">
-    <div class="overflow-x-auto">
-      <table class="min-w-full divide-y divide-borderLight">
-        <thead class="bg-secondary">
-          <tr>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">读者ID</th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">姓名</th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">性别</th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">类型</th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">学号/工号</th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">联系电话</th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">邮箱</th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">注册日期</th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">操作</th>
-          </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-borderLight">
-          <tr v-for="reader in readers" :key="reader.reader_id" class="table-hover-row transition-colors">
-            <td class="px-6 py-4 whitespace-nowrap text-sm">RD-{{ String(reader.reader_id).padStart(3, '0') }}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">{{ reader.name }}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">{{ reader.gender || '-' }}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">{{ getTypeText(reader.type) }}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">{{ reader.student_id }}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">{{ reader.phone || '-' }}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">{{ reader.email || '-' }}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">{{ formatDate(reader.created_at) }}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-              <button 
-                @click="viewReader(reader.reader_id)"
-                class="text-primary hover:text-primary/80 mr-3 transition-colors"
-              >
-                查看
-              </button>
-              <button 
-                @click="editReader(reader.reader_id)"
-                class="text-primaryLight hover:text-primaryLight/80 mr-3 transition-colors"
-              >
-                编辑
-              </button>
-              <button 
-                @click="deleteReader(reader.reader_id)"
-                class="text-danger hover:text-danger/80 transition-colors"
-              >
-                删除
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    
-    <!-- 分页 -->
-    <div class="px-6 py-4 bg-white border-t border-borderLight flex items-center justify-between">
-      <div class="flex-1 flex justify-between sm:hidden">
+  <div>
+    <!-- 页面标题和操作按钮 -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+      <h1 class="text-xl font-semibold">读者管理</h1>
+      <div class="flex gap-2 self-end sm:self-auto">
         <button 
-          @click="handlePageChange(currentPage - 1)"
-          :disabled="currentPage === 1 || isLoading"
-          class="relative inline-flex items-center px-4 py-2 border border-borderMedium text-sm font-medium rounded-md text-textPrimary bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          @click="showImportDialog" 
+          class="bg-secondary text-textPrimary py-2 px-4 rounded-md font-medium hover:bg-gray-200 transition-colors"
+          :disabled="isLoading || isProcessingImport"
         >
-          上一页
+          <i class="fa fa-upload mr-2"></i>
+          {{ isProcessingImport ? '导入中...' : '导入读者' }}
         </button>
         <button 
-          @click="handlePageChange(currentPage + 1)"
-          :disabled="currentPage >= Math.ceil(total / pageSize) || isLoading"
-          class="ml-3 relative inline-flex items-center px-4 py-2 border border-borderMedium text-sm font-medium rounded-md text-textPrimary bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          @click="openAddModal" 
+          class="bg-primary text-white py-2 px-4 rounded-md font-medium hover:bg-primary/90 transition-colors"
+          :disabled="isLoading"
         >
-          下一页
+          <i class="fa fa-user-plus mr-2"></i>添加读者
         </button>
-      </div>
-      <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-        <div>
-          <p class="text-sm text-textSecondary">
-            共 <span class="font-medium">{{ total }}</span> 条记录，当前第 <span class="font-medium">{{ currentPage }}</span>/<span class="font-medium">{{ Math.ceil(total / pageSize) }}</span> 页
-          </p>
-        </div>
-        <div>
-          <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-            <button 
-              @click="handlePageChange(1)"
-              :disabled="currentPage === 1 || isLoading"
-              class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-borderMedium bg-white text-sm font-medium text-textSecondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span class="sr-only">首页</span>
-              <i class="fa fa-angle-double-left text-xs"></i>
-            </button>
-            <button 
-              @click="handlePageChange(currentPage - 1)"
-              :disabled="currentPage === 1 || isLoading"
-              class="relative inline-flex items-center px-2 py-2 border border-borderMedium bg-white text-sm font-medium text-textSecondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span class="sr-only">上一页</span>
-              <i class="fa fa-chevron-left text-xs"></i>
-            </button>
-            <button 
-              @click="handlePageChange(currentPage + 1)"
-              :disabled="currentPage >= Math.ceil(total / pageSize) || isLoading"
-              class="relative inline-flex items-center px-2 py-2 border border-borderMedium bg-white text-sm font-medium text-textSecondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span class="sr-only">下一页</span>
-              <i class="fa fa-chevron-right text-xs"></i>
-            </button>
-            <button 
-              @click="handlePageChange(Math.ceil(total / pageSize))"
-              :disabled="currentPage >= Math.ceil(total / pageSize) || isLoading"
-              class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-borderMedium bg-white text-sm font-medium text-textSecondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span class="sr-only">末页</span>
-              <i class="fa fa-angle-double-right text-xs"></i>
-            </button>
-          </nav>
-        </div>
-      </div>
-    </div>
-  </div>
-
-    <!-- 新增读者弹窗 -->
-    <div class="modal-overlay" v-if="isAddModalOpen" @click="closeAddModal">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h2>新增读者</h2>
-          <button class="close-btn" @click="closeAddModal">&times;</button>
-        </div>
-        <div class="modal-body">
-          <!-- 读者ID生成方式提示 -->
-        <div class="form-note">
-          <p><strong>重要提示：</strong>读者ID由系统自动生成，无需手动填写</p>
-          <p>学号/工号为必填且唯一字段，重复将无法提交</p>
-        </div>
-          <div class="form-group">
-            <label>姓名</label>
-            <input type="text" v-model="newReader.name" placeholder="请输入姓名">
-          </div>
-          <div class="form-group">
-            <label>学号/工号</label>
-            <input type="text" v-model="newReader.student_id" placeholder="请输入学号或工号">
-          </div>
-          <div class="form-group">
-            <label>类型</label>
-            <select v-model="newReader.type">
-              <option value="学生">学生</option>
-              <option value="教师">教师</option>
-              <option value="普通读者">普通读者</option>
-            </select>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="cancel-btn" @click="closeAddModal">取消</button>
-          <button class="confirm-btn" @click="confirmAddReader" :disabled="isSubmitting">确认新增</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 编辑读者弹窗 -->
-    <div class="modal-overlay" v-if="isEditModalOpen" @click="closeEditModal">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h2>编辑读者</h2>
-          <button class="close-btn" @click="closeEditModal">&times;</button>
-        </div>
-        <div class="modal-body">
-          <!-- 读者ID生成方式提示 -->
-        <div class="form-note">
-          <p><strong>重要提示：</strong>读者ID由系统自动生成，无需手动填写</p>
-          <p>学号/工号为必填且唯一字段，重复将无法提交</p>
-        </div>
-          <div class="form-group">
-            <label>姓名</label>
-            <input type="text" v-model="editingReader.name" placeholder="请输入姓名">
-          </div>
-          <div class="form-group">
-            <label>学号/工号</label>
-            <input type="text" v-model="editingReader.student_id" placeholder="请输入学号或工号">
-          </div>
-          <div class="form-group">
-            <label>类型</label>
-            <select v-model="editingReader.type">
-              <option value="学生">学生</option>
-              <option value="教师">教师</option>
-              <option value="普通读者">普通读者</option>
-            </select>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="cancel-btn" @click="closeEditModal">取消</button>
-          <button class="confirm-btn" @click="confirmEditReader" :disabled="isSubmitting">确认修改</button>
-        </div>
       </div>
     </div>
     
-    <!-- 第3阶段新增：读者导入弹窗 -->
-    <div v-if="showImportModal" class="modal-overlay">
-      <div class="modal-content import-modal">
-        <div class="modal-header">
-          <h3>导入读者数据</h3>
-          <button @click="closeImportModal" class="close-btn">&times;</button>
+    <!-- 搜索和筛选区域 -->
+    <div class="bg-white rounded-lg border border-borderLight p-5 card-shadow mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label class="block text-sm text-textSecondary mb-1">读者姓名</label>
+          <div class="relative">
+            <input 
+              type="text" 
+              v-model="searchParams.name"
+              placeholder="请输入读者姓名" 
+              class="w-full px-3 py-2 border border-borderMedium rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+            >
+          </div>
         </div>
-        <div class="modal-body">
-          <div class="import-steps">
-            <div class="step-item" :class="{ active: !importFile }">
-              <div class="step-number">1</div>
-              <div class="step-content">
-                <h4>下载Excel模板</h4>
-                <p>下载标准的读者导入模板，按格式填写数据</p>
-                <button @click="downloadTemplate" class="template-btn">
-                  <i class="icon-download">↓</i> 下载Excel模板
-                </button>
-              </div>
-            </div>
-            
-            <div class="step-item" :class="{ active: importFile && !importPreview }">
-              <div class="step-number">2</div>
-              <div class="step-content">
-                <h4>上传Excel文件</h4>
-                <p>选择填写好数据的Excel文件（支持.xls和.xlsx格式）</p>
-                <div class="file-upload-area" :class="{ 'has-file': importFile }">
-                  <input 
-                    type="file" 
-                    ref="fileInput" 
-                    @change="handleFileSelect"
-                    accept=".xls,.xlsx"
-                    class="file-input"
-                  >
-                  <div class="upload-content" @click="$refs.fileInput.click()">
-                    <div v-if="!importFile" class="upload-placeholder">
-                      <i class="icon-upload">↑</i>
-                      <p>点击选择Excel文件</p>
-                      <p class="file-hint">支持 .xls, .xlsx 格式，最大 10MB</p>
-                    </div>
-                    <div v-else class="file-selected">
-                      <i class="icon-file">📄</i>
-                      <span class="file-name">{{ importFile.name }}</span>
-                      <span class="file-size">({{ formatFileSize(importFile.size) }})</span>
-                      <button @click.stop="clearFile" class="clear-file-btn">&times;</button>
-                    </div>
-                  </div>
-                </div>
+        <div>
+          <label class="block text-sm text-textSecondary mb-1">读者类型</label>
+          <select 
+            v-model="searchParams.type"
+            class="w-full px-3 py-2 border border-borderMedium rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+          >
+            <option value="">全部类型</option>
+            <option value="学生">学生</option>
+            <option value="教师">教师</option>
+            <option value="职工">职工</option>
+            <option value="其他">其他</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm text-textSecondary mb-1">读者ID</label>
+          <div class="relative">
+            <input 
+              type="text" 
+              v-model="searchParams.readerId"
+              placeholder="请输入读者ID" 
+              class="w-full px-3 py-2 border border-borderMedium rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+            >
+          </div>
+        </div>
+      </div>
+      
+      <div class="flex justify-end mt-4">
+        <button 
+          @click="resetSearch"
+          class="bg-secondary text-textPrimary py-2 px-4 rounded-md font-medium hover:bg-gray-200 transition-colors mr-2"
+          :disabled="isLoading"
+        >
+          <i class="fa fa-refresh mr-2"></i>重置
+        </button>
+        <button 
+          @click="searchReaders"
+          class="bg-primary text-white py-2 px-4 rounded-md font-medium hover:bg-primary/90 transition-colors"
+          :disabled="isLoading"
+        >
+          <i class="fa fa-search mr-2"></i>搜索
+        </button>
+      </div>
+    </div>
+    
+    <!-- 加载状态 -->
+    <div v-if="isLoading" class="bg-white rounded-lg border border-borderLight p-8 card-shadow text-center">
+      <div class="flex flex-col items-center">
+        <div class="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p class="text-textSecondary">正在加载读者数据...</p>
+      </div>
+    </div>
+    
+    <!-- 无结果提示 -->
+    <div v-if="!isLoading && readers.length === 0" class="bg-white rounded-lg border border-borderLight p-8 card-shadow text-center">
+      <p class="text-textSecondary">暂无读者数据</p>
+    </div>
+
+    <!-- 读者列表 -->
+    <div v-if="!isLoading && readers.length > 0" class="bg-white rounded-lg border border-borderLight card-shadow overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-borderLight">
+          <thead class="bg-secondary">
+            <tr>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">读者ID</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">姓名</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">性别</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">类型</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">学号/工号</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">联系电话</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">邮箱</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">注册日期</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">操作</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-borderLight">
+            <tr v-for="reader in readers" :key="reader.reader_id" class="table-hover-row transition-colors">
+              <td class="px-6 py-4 whitespace-nowrap text-sm">RD-{{ String(reader.reader_id).padStart(3, '0') }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm">{{ reader.name }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm">{{ reader.gender || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm">{{ getTypeText(reader.type) }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm">{{ reader.student_id }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm">{{ reader.phone || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm">{{ reader.email || '-' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm">{{ formatDate(reader.created_at) }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                 <button 
-                  v-if="importFile && !importPreview" 
-                  @click="parseImportFile" 
-                  class="parse-btn"
-                  :disabled="isProcessingImport"
+                  @click="viewReader(reader.reader_id)"
+                  class="text-primary hover:text-primary/80 mr-3 transition-colors"
                 >
-                  {{ isProcessingImport ? '解析中...' : '解析文件' }}
+                  查看
                 </button>
-              </div>
-            </div>
-            
-            <div class="step-item" :class="{ active: importPreview }">
-              <div class="step-number">3</div>
-              <div class="step-content">
-                <h4>数据预览与确认</h4>
-                <div v-if="importPreview" class="preview-section">
-                  <div class="preview-summary">
-                    <p>解析成功！共发现 <strong>{{ importPreview.validCount }}</strong> 条有效数据</p>
-                    <div v-if="importPreview.errors && importPreview.errors.length > 0" class="preview-errors">
-                      <h5>数据验证错误：</h5>
-                      <ul>
-                        <li v-for="(error, index) in importPreview.errors" :key="index" class="error-item">
-                          {{ error }}
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-                  
-                  <div class="preview-table" v-if="importPreview.sample && importPreview.sample.length > 0">
-                    <h5>数据预览（前5条）：</h5>
-                    <table class="sample-table">
-                      <thead>
-                        <tr>
-                          <th>姓名</th>
-                          <th>学号</th>
-                          <th>邮箱</th>
-                          <th>电话</th>
-                          <th>类型</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr v-for="(reader, index) in importPreview.sample" :key="index">
-                          <td>{{ reader.name }}</td>
-                          <td>{{ reader.student_id }}</td>
-                          <td>{{ reader.email }}</td>
-                          <td>{{ reader.phone }}</td>
-                          <td>{{ reader.type }}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div class="modal-footer">
-          <button @click="closeImportModal" class="cancel-btn">取消</button>
+                <button 
+                  @click="editReader(reader.reader_id)"
+                  class="text-primaryLight hover:text-primaryLight/80 mr-3 transition-colors"
+                >
+                  编辑
+                </button>
+                <button 
+                  @click="deleteReader(reader.reader_id)"
+                  class="text-danger hover:text-danger/80 transition-colors"
+                >
+                  删除
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- 分页 -->
+      <div class="px-6 py-4 bg-white border-t border-borderLight flex items-center justify-between">
+        <div class="flex-1 flex justify-between sm:hidden">
           <button 
-            v-if="importPreview && importPreview.validCount > 0"
-            @click="confirmImport" 
-            class="confirm-btn"
-            :disabled="isProcessingImport"
+            @click="handlePageChange(currentPage - 1)"
+            :disabled="currentPage === 1 || isLoading"
+            class="relative inline-flex items-center px-4 py-2 border border-borderMedium text-sm font-medium rounded-md text-textPrimary bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {{ isProcessingImport ? '导入中...' : `确认导入 ${importPreview.validCount} 条数据` }}
+            上一页
+          </button>
+          <button 
+            @click="handlePageChange(currentPage + 1)"
+            :disabled="currentPage >= Math.ceil(total / pageSize) || isLoading"
+            class="ml-3 relative inline-flex items-center px-4 py-2 border border-borderMedium text-sm font-medium rounded-md text-textPrimary bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            下一页
           </button>
         </div>
+        <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+          <div>
+            <p class="text-sm text-textSecondary">
+              共 <span class="font-medium">{{ total }}</span> 条记录，当前第 <span class="font-medium">{{ currentPage }}</span>/<span class="font-medium">{{ Math.ceil(total / pageSize) }}</span> 页
+            </p>
+          </div>
+          <div>
+            <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+              <button 
+                @click="handlePageChange(1)"
+                :disabled="currentPage === 1 || isLoading"
+                class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-borderMedium bg-white text-sm font-medium text-textSecondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span class="sr-only">首页</span>
+                <i class="fa fa-angle-double-left text-xs"></i>
+              </button>
+              <button 
+                @click="handlePageChange(currentPage - 1)"
+                :disabled="currentPage === 1 || isLoading"
+                class="relative inline-flex items-center px-2 py-2 border border-borderMedium bg-white text-sm font-medium text-textSecondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span class="sr-only">上一页</span>
+                <i class="fa fa-chevron-left text-xs"></i>
+              </button>
+              <button 
+                @click="handlePageChange(currentPage + 1)"
+                :disabled="currentPage >= Math.ceil(total / pageSize) || isLoading"
+                class="relative inline-flex items-center px-2 py-2 border border-borderMedium bg-white text-sm font-medium text-textSecondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span class="sr-only">下一页</span>
+                <i class="fa fa-chevron-right text-xs"></i>
+              </button>
+              <button 
+                @click="handlePageChange(Math.ceil(total / pageSize))"
+                :disabled="currentPage >= Math.ceil(total / pageSize) || isLoading"
+                class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-borderMedium bg-white text-sm font-medium text-textSecondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span class="sr-only">末页</span>
+                <i class="fa fa-angle-double-right text-xs"></i>
+              </button>
+            </nav>
+          </div>
+        </div>
       </div>
     </div>
+
+      <!-- 新增读者弹窗 -->
+      <div class="modal-overlay" v-if="isAddModalOpen" @click="closeAddModal">
+        <div class="modal-content" @click.stop>
+          <div class="modal-header">
+            <h2>新增读者</h2>
+            <button class="close-btn" @click="closeAddModal">&times;</button>
+          </div>
+          <div class="modal-body">
+            <!-- 读者ID生成方式提示 -->
+          <div class="form-note">
+            <p><strong>重要提示：</strong>读者ID由系统自动生成，无需手动填写</p>
+            <p>学号/工号为必填且唯一字段，重复将无法提交</p>
+          </div>
+            <div class="form-group">
+              <label>姓名</label>
+              <input type="text" v-model="newReader.name" placeholder="请输入姓名">
+            </div>
+            <div class="form-group">
+              <label>学号/工号</label>
+              <input type="text" v-model="newReader.student_id" placeholder="请输入学号或工号">
+            </div>
+            <div class="form-group">
+              <label>类型</label>
+              <select v-model="newReader.type">
+                <option value="学生">学生</option>
+                <option value="教师">教师</option>
+                <option value="普通读者">普通读者</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="cancel-btn" @click="closeAddModal">取消</button>
+            <button class="confirm-btn" @click="confirmAddReader" :disabled="isSubmitting">确认新增</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 编辑读者弹窗 -->
+      <div class="modal-overlay" v-if="isEditModalOpen" @click="closeEditModal">
+        <div class="modal-content" @click.stop>
+          <div class="modal-header">
+            <h2>编辑读者</h2>
+            <button class="close-btn" @click="closeEditModal">&times;</button>
+          </div>
+          <div class="modal-body">
+            <!-- 读者ID生成方式提示 -->
+          <div class="form-note">
+            <p><strong>重要提示：</strong>读者ID由系统自动生成，无需手动填写</p>
+            <p>学号/工号为必填且唯一字段，重复将无法提交</p>
+          </div>
+            <div class="form-group">
+              <label>姓名</label>
+              <input type="text" v-model="editingReader.name" placeholder="请输入姓名">
+            </div>
+            <div class="form-group">
+              <label>学号/工号</label>
+              <input type="text" v-model="editingReader.student_id" placeholder="请输入学号或工号">
+            </div>
+            <div class="form-group">
+              <label>类型</label>
+              <select v-model="editingReader.type">
+                <option value="学生">学生</option>
+                <option value="教师">教师</option>
+                <option value="普通读者">普通读者</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="cancel-btn" @click="closeEditModal">取消</button>
+            <button class="confirm-btn" @click="confirmEditReader" :disabled="isSubmitting">确认修改</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 第3阶段新增：读者导入弹窗 -->
+      <div v-if="showImportModal" class="modal-overlay">
+        <div class="modal-content import-modal">
+          <div class="modal-header">
+            <h3>导入读者数据</h3>
+            <button @click="closeImportModal" class="close-btn">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="import-steps">
+              <div class="step-item" :class="{ active: !importFile }">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                  <h4>下载Excel模板</h4>
+                  <p>下载标准的读者导入模板，按格式填写数据</p>
+                  <button @click="downloadTemplate" class="template-btn">
+                    <i class="icon-download">↓</i> 下载Excel模板
+                  </button>
+                </div>
+              </div>
+              
+              <div class="step-item" :class="{ active: importFile && !importPreview }">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                  <h4>上传Excel文件</h4>
+                  <p>选择填写好数据的Excel文件（支持.xls和.xlsx格式）</p>
+                  <div class="file-upload-area" :class="{ 'has-file': importFile }">
+                    <input 
+                      type="file" 
+                      ref="fileInput" 
+                      @change="handleFileSelect"
+                      accept=".xls,.xlsx"
+                      class="file-input"
+                    >
+                    <div class="upload-content" @click="$refs.fileInput.click()">
+                      <div v-if="!importFile" class="upload-placeholder">
+                        <i class="icon-upload">↑</i>
+                        <p>点击选择Excel文件</p>
+                        <p class="file-hint">支持 .xls, .xlsx 格式，最大 10MB</p>
+                      </div>
+                      <div v-else class="file-selected">
+                        <i class="icon-file">📄</i>
+                        <span class="file-name">{{ importFile.name }}</span>
+                        <span class="file-size">({{ formatFileSize(importFile.size) }})</span>
+                        <button @click.stop="clearFile" class="clear-file-btn">&times;</button>
+                      </div>
+                    </div>
+                  </div>
+                  <button 
+                    v-if="importFile && !importPreview" 
+                    @click="parseImportFile" 
+                    class="parse-btn"
+                    :disabled="isProcessingImport"
+                  >
+                    {{ isProcessingImport ? '解析中...' : '解析文件' }}
+                  </button>
+                </div>
+              </div>
+              
+              <div class="step-item" :class="{ active: importPreview }">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                  <h4>数据预览与确认</h4>
+                  <div v-if="importPreview" class="preview-section">
+                    <div class="preview-summary">
+                      <p>解析成功！共发现 <strong>{{ importPreview.validCount }}</strong> 条有效数据</p>
+                      <div v-if="importPreview.errors && importPreview.errors.length > 0" class="preview-errors">
+                        <h5>数据验证错误：</h5>
+                        <ul>
+                          <li v-for="(error, index) in importPreview.errors" :key="index" class="error-item">
+                            {{ error }}
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                    
+                    <div class="preview-table" v-if="importPreview.sample && importPreview.sample.length > 0">
+                      <h5>数据预览（前5条）：</h5>
+                      <table class="sample-table">
+                        <thead>
+                          <tr>
+                            <th>姓名</th>
+                            <th>学号</th>
+                            <th>邮箱</th>
+                            <th>电话</th>
+                            <th>类型</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="(reader, index) in importPreview.sample" :key="index">
+                            <td>{{ reader.name }}</td>
+                            <td>{{ reader.student_id }}</td>
+                            <td>{{ reader.email }}</td>
+                            <td>{{ reader.phone }}</td>
+                            <td>{{ reader.type }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="modal-footer">
+            <button @click="closeImportModal" class="cancel-btn">取消</button>
+            <button 
+              v-if="importPreview && importPreview.validCount > 0"
+              @click="confirmImport" 
+              class="confirm-btn"
+              :disabled="isProcessingImport"
+            >
+              {{ isProcessingImport ? '导入中...' : `确认导入 ${importPreview.validCount} 条数据` }}
+            </button>
+          </div>
+        </div>
+      </div>
+  </div>
 </template>
 
 <script>
@@ -464,7 +466,8 @@ export default {
           params.type = this.searchParams.type;
         }
         if (this.searchParams.readerId && this.searchParams.readerId.trim()) {
-          params.readerId = this.searchParams.readerId.trim();
+          // 修复参数名映射，后端期望的是reader_id而不是readerId
+          params.reader_id = this.searchParams.readerId.trim();
         }
         
         console.log('正在获取读者列表，参数:', params);

@@ -1,302 +1,264 @@
 <!-- 图书列表页组件 -->
 <!-- 版本：v1.0.0 -->
 <template>
-  <div class="book-list-container">
-    <h1 class="page-title">图书列表</h1>
-    
-    <!-- 查询条件区 -->
-    <div class="search-section">
-      <div class="search-form">
-        <!-- 第一组查询条件：分类 + 书名 -->
-        <div class="search-row">
-          <div class="form-group">
-            <label for="category">分类</label>
-            <select id="category" v-model="searchParams.category" class="form-control">
-              <option value="">全部</option>
-              <option value="计算机">计算机</option>
-              <option value="文学小说">文学小说</option>
-              <option value="历史">历史</option>
-              <option value="科学">科学</option>
-              <option value="哲学">哲学</option>
-              <option value="艺术">艺术</option>
-              <option value="心理学">心理学</option>
-              <option value="教育心理">教育心理</option>
-            </select>
-          </div>
-          
-          <div class="form-group">
-            <label for="bookName">书名</label>
-            <input 
-              type="text" 
-              id="bookName" 
-              v-model="searchParams.bookName"
-              placeholder="请输入书名"
-              class="form-control"
-            >
-          </div>
-        </div>
-        
-        <!-- 第二、三组查询条件：默认隐藏 -->
-        <div v-if="showMoreConditions" class="search-row">
-          <div class="form-group">
-            <label for="readerType">读者类型</label>
-            <select id="readerType" v-model="searchParams.readerType" class="form-control">
-              <option value="">全部</option>
-              <option value="学生">学生</option>
-              <option value="教师">教师</option>
-              <option value="普通读者">普通读者</option>
-            </select>
-          </div>
-          
-          <div class="form-group">
-            <label for="author">作者</label>
-            <input 
-              type="text" 
-              id="author" 
-              v-model="searchParams.author"
-              placeholder="请输入作者"
-              class="form-control"
-            >
-          </div>
-        </div>
-        
-        <div v-if="showMoreConditions" class="search-row">
-          <div class="form-group">
-            <label for="stock">库存</label>
-            <input 
-              type="number" 
-              id="stock" 
-              v-model="searchParams.stock"
-              placeholder="请输入库存数量"
-              class="form-control"
-              min="0"
-            >
-          </div>
-          
-          <div class="form-group">
-            <label for="publisher">出版社</label>
-            <input 
-              type="text" 
-              id="publisher" 
-              v-model="searchParams.publisher"
-              placeholder="请输入出版社"
-              class="form-control"
-            >
-          </div>
-        </div>
-        
-        <div v-if="showMoreConditions" class="search-row">
-          <div class="form-group">
-            <label for="isbn">ISBN编号</label>
-            <input 
-              type="text" 
-              id="isbn" 
-              v-model="searchParams.isbn"
-              placeholder="请输入ISBN编号"
-              class="form-control"
-            >
-          </div>
-          
-          <div class="form-group">
-            <label for="publishYear">出版年份</label>
-            <select id="publishYear" v-model="searchParams.publishYear" class="form-control">
-              <option value="">全部</option>
-              <option value="2024">2024年</option>
-              <option value="2023">2023年</option>
-              <option value="2022">2022年</option>
-              <option value="2021">2021年</option>
-              <option value="2020">2020年</option>
-              <option value="older">更早</option>
-            </select>
-          </div>
-        </div>
-        
-        <!-- 按钮区域 -->
-        <div class="button-group">
-          <button 
-            @click="searchBooks"
-            class="search-button"
-            :disabled="isLoading"
+  <div>
+    <!-- 页面标题和操作按钮 -->
+  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+    <h1 class="text-xl font-semibold">图书管理</h1>
+    <button class="bg-primary text-white py-2 px-4 rounded-md font-medium hover:bg-primary/90 transition-colors self-end sm:self-auto" @click="showAddBookModal">
+      <i class="fa fa-plus mr-2"></i>添加图书
+    </button>
+  </div>
+  
+  <!-- 搜索和筛选区域 -->
+  <div class="bg-white rounded-lg border border-borderLight p-5 card-shadow mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <label class="block text-sm text-textSecondary mb-1">图书名称</label>
+        <div class="relative">
+          <input 
+            type="text" 
+            v-model="searchParams.bookName"
+            placeholder="请输入图书名称" 
+            class="w-full px-3 py-2 border border-borderMedium rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
           >
-            <span v-if="isLoading" class="loading-spinner"></span>
-            {{ isLoading ? '查询中...' : '查询' }}
-          </button>
-          
-          <button 
-            @click="resetSearch"
-            class="reset-button"
-            :disabled="isLoading"
-          >
-            重置
-          </button>
-          
-          <button 
-            @click="toggleMoreConditions"
-            class="toggle-button"
-          >
-            {{ showMoreConditions ? '收起' : '展开更多条件' }}
-          </button>
         </div>
+      </div>
+      <div>
+        <label class="block text-sm text-textSecondary mb-1">图书分类</label>
+        <select 
+          v-model="searchParams.category"
+          class="w-full px-3 py-2 border border-borderMedium rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+        >
+          <option value="">全部分类</option>
+          <option value="计算机">计算机科学</option>
+          <option value="文学小说">文学</option>
+          <option value="历史">历史</option>
+          <option value="哲学">哲学</option>
+          <option value="艺术">艺术</option>
+          <option value="心理学">心理学</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm text-textSecondary mb-1">图书状态</label>
+        <select 
+          v-model="searchParams.stock"
+          class="w-full px-3 py-2 border border-borderMedium rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+        >
+          <option value="">全部状态</option>
+          <option value="available">可借阅</option>
+          <option value="borrowed">已借出</option>
+          <option value="maintenance">维护中</option>
+        </select>
       </div>
     </div>
     
-    <!-- 结果列表区 -->
-    <div class="result-section">
-      <!-- 搜索结果统计 -->
-      <div v-if="!isLoading && filteredBooks.length > 0" class="search-stats">
-        <span class="stats-text">
-          找到 <strong>{{ pagination.total }}</strong> 本图书，当前显示第 
-          <strong>{{ (pagination.currentPage - 1) * pagination.pageSize + 1 }}</strong> - 
-          <strong>{{ Math.min(pagination.currentPage * pagination.pageSize, pagination.total) }}</strong> 本
-        </span>
-        <span class="available-stats">
-          可借图书：<strong class="available-count">{{ getAvailableCount() }}</strong> 本
-        </span>
+    <div class="flex justify-end mt-4">
+      <button 
+        @click="resetSearch"
+        class="bg-secondary text-textPrimary py-2 px-4 rounded-md font-medium hover:bg-gray-200 transition-colors mr-2"
+        :disabled="isLoading"
+      >
+        <i class="fa fa-refresh mr-2"></i>重置
+      </button>
+      <button 
+        @click="searchBooks"
+        class="bg-primary text-white py-2 px-4 rounded-md font-medium hover:bg-primary/90 transition-colors"
+        :disabled="isLoading"
+      >
+        <i class="fa fa-search mr-2"></i>搜索
+      </button>
+    </div>
+  </div>
+  
+  <!-- 加载状态 -->
+  <div v-if="isLoading" class="bg-white rounded-lg border border-borderLight p-8 card-shadow text-center">
+    <div class="flex flex-col items-center">
+      <div class="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+      <p class="text-textSecondary">正在加载图书数据...</p>
+    </div>
+  </div>
+  
+  <!-- 无结果提示 -->
+  <div v-if="!isLoading && filteredBooks.length === 0" class="bg-white rounded-lg border border-borderLight p-8 card-shadow text-center">
+    <p class="text-textSecondary">无匹配的图书</p>
+  </div>
+  
+  <!-- 操作工具栏（导入和导出功能） -->
+  <div v-if="!isLoading && filteredBooks.length > 0" class="flex justify-between items-center mb-4">
+    <div class="text-sm text-textSecondary">
+      找到 <strong>{{ pagination.total }}</strong> 本图书，当前显示第 
+      <strong>{{ (pagination.currentPage - 1) * pagination.pageSize + 1 }}</strong> - 
+      <strong>{{ Math.min(pagination.currentPage * pagination.pageSize, pagination.total) }}</strong> 本
+      ，可借图书：<strong class="text-success">{{ getAvailableCount() }}</strong> 本
+    </div>
+    <div class="flex gap-2">
+      <button 
+        @click="exportBooks"
+        class="bg-secondary text-textPrimary py-2 px-4 rounded-md font-medium hover:bg-gray-200 transition-colors"
+        :disabled="isProcessingExport || filteredBooks.length === 0"
+      >
+        <i class="fa fa-download mr-2"></i>
+        {{ isProcessingExport ? '导出中...' : '导出图书' }}
+      </button>
+      <button 
+        @click="showImportDialog"
+        class="bg-secondary text-textPrimary py-2 px-4 rounded-md font-medium hover:bg-gray-200 transition-colors"
+        :disabled="isProcessingImport"
+      >
+        <i class="fa fa-upload mr-2"></i>
+        {{ isProcessingImport ? '导入中...' : '导入图书' }}
+      </button>
+    </div>
+  </div>
+  
+  <!-- 批量操作工具栏 -->
+  <div v-if="selectedBooks.length > 0" class="bg-primaryLight/10 border border-primaryLight rounded-lg p-4 mb-4">
+    <div class="flex justify-between items-center">
+      <div class="text-sm text-primary">
+        已选择 <strong>{{ selectedBooks.length }}</strong> 本图书
       </div>
-      
-      <!-- 加载状态 -->
-      <div v-if="isLoading" class="loading-state">
-        <div class="loading-container">
-          <div class="loading-spinner-lg"></div>
-          <p>正在加载图书数据...</p>
-        </div>
-      </div>
-      
-      <!-- 无结果提示 -->
-      <div v-if="!isLoading && filteredBooks.length === 0" class="no-result">
-        <p>无匹配的图书</p>
-      </div>
-      
-      <!-- 操作工具栏（导入和导出功能） -->
-      <div v-if="!isLoading" class="operations-toolbar">
+      <div class="flex gap-2">
         <button 
-          @click="exportBooks"
-          class="export-btn"
-          :disabled="isProcessingExport || filteredBooks.length === 0"
+          @click="showBatchDeleteConfirm"
+          class="bg-danger text-white py-2 px-4 rounded-md font-medium hover:bg-danger/90 transition-colors"
+          :disabled="isProcessingBatch"
         >
-          <i class="icon-export">↓</i>
-          {{ isProcessingExport ? '导出中...' : '导出图书' }}
+          {{ isProcessingBatch ? '处理中...' : '批量删除' }}
         </button>
         <button 
-          @click="showImportDialog"
-          class="import-btn"
-          :disabled="isProcessingImport"
+          @click="showBatchCategoryDialog"
+          class="bg-primaryLight text-white py-2 px-4 rounded-md font-medium hover:bg-primaryLight/90 transition-colors"
+          :disabled="isProcessingBatch"
         >
-          <i class="icon-import">↑</i>
-          {{ isProcessingImport ? '导入中...' : '导入图书' }}
+          修改分类
+        </button>
+        <button 
+          @click="clearSelection"
+          class="bg-secondary text-textPrimary py-2 px-4 rounded-md font-medium hover:bg-gray-200 transition-colors"
+        >
+          取消选择
         </button>
       </div>
-      
-      <!-- 批量操作工具栏 -->
-      <div v-if="selectedBooks.length > 0" class="batch-operations-toolbar">
-        <div class="selected-info">
-          <span class="selected-count">已选择 {{ selectedBooks.length }} 本图书</span>
-        </div>
-        <div class="batch-buttons">
-          <button 
-            @click="showBatchDeleteConfirm"
-            class="batch-delete-btn"
-            :disabled="isProcessingBatch"
-          >
-            {{ isProcessingBatch ? '处理中...' : '批量删除' }}
-          </button>
-          <button 
-            @click="showBatchCategoryDialog"
-            class="batch-category-btn"
-            :disabled="isProcessingBatch"
-          >
-            修改分类
-          </button>
-          <button 
-            @click="clearSelection"
-            class="cancel-selection-btn"
-          >
-            取消选择
-          </button>
-        </div>
+    </div>
+  </div>
+  
+  <!-- 图书列表 -->
+  <div v-if="!isLoading && filteredBooks.length > 0" class="bg-white rounded-lg border border-borderLight card-shadow overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-borderLight">
+        <thead class="bg-secondary">
+          <tr>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">
+              <input 
+                type="checkbox" 
+                v-model="selectAll"
+                @change="toggleSelectAll"
+                :disabled="isLoading || !hasSelectableBooks"
+                class="rounded border-borderMedium"
+              >
+            </th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">ID</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">图书名称</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">作者</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">分类</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">出版社</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">ISBN</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">状态</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-textPrimary uppercase tracking-wider">操作</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-borderLight">
+          <tr v-for="book in filteredBooks" :key="book.book_id" class="table-hover-row transition-colors" :class="{ 'bg-primary/5': selectedBooks.includes(book.book_id) }">
+            <td class="px-6 py-4 whitespace-nowrap">
+              <input 
+                type="checkbox" 
+                :value="parseInt(book.book_id)"
+                v-model="selectedBooks"
+                :disabled="isBookDisabled(book)"
+                class="rounded border-borderMedium"
+              >
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">BK-{{ String(book.book_id).padStart(3, '0') }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">{{ book.title }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">{{ book.author }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">{{ book.category_name }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">{{ book.publisher || '-' }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">{{ book.isbn || '-' }}</td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <span 
+                v-if="book.available > 0"
+                class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-success/10 text-success"
+              >
+                可借阅
+              </span>
+              <span 
+                v-else
+                class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-danger/10 text-danger"
+              >
+                已借出
+              </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+              <button 
+                @click="borrowBook(book)"
+                class="text-primary hover:text-primary/80 mr-3 transition-colors"
+                :disabled="book.available <= 0"
+              >
+                借阅
+              </button>
+              <button 
+                @click="viewBookDetail(book)"
+                class="text-primaryLight hover:text-primaryLight/80 mr-3 transition-colors"
+              >
+                详情
+              </button>
+              <button 
+                class="text-danger hover:text-danger/80 transition-colors"
+              >
+                删除
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    
+    <!-- 分页 -->
+    <div class="px-6 py-4 bg-white border-t border-borderLight flex items-center justify-between">
+      <div class="flex-1 flex justify-between sm:hidden">
+        <button 
+          @click="changePage(pagination.currentPage - 1)"
+          :disabled="pagination.currentPage === 1"
+          class="relative inline-flex items-center px-4 py-2 border border-borderMedium text-sm font-medium rounded-md text-textPrimary bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          上一页
+        </button>
+        <button 
+          @click="changePage(pagination.currentPage + 1)"
+          :disabled="pagination.currentPage >= totalPages"
+          class="ml-3 relative inline-flex items-center px-4 py-2 border border-borderMedium text-sm font-medium rounded-md text-textPrimary bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          下一页
+        </button>
       </div>
-      
-      <!-- 图书列表 -->
-        <table v-if="!isLoading && filteredBooks.length > 0" class="book-table">
-          <thead>
-            <tr>
-              <th class="checkbox-column">
-                <input 
-                  type="checkbox" 
-                  v-model="selectAll"
-                  @change="toggleSelectAll"
-                  :disabled="isLoading || !hasSelectableBooks"
-                  title="全选/取消全选"
-                >
-              </th>
-              <th>书名</th>
-              <th>作者</th>
-              <th>分类</th>
-              <th>出版社</th>
-              <th>ISBN</th>
-              <th>出版日期</th>
-              <th>库存/可借</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="book in filteredBooks" :key="book.book_id" :class="{ 'selected-row': selectedBooks.includes(book.book_id) }">
-              <td class="checkbox-column">
-                <input 
-                  type="checkbox" 
-                  :value="parseInt(book.book_id)"
-                  v-model="selectedBooks"
-                  :disabled="isBookDisabled(book)"
-                  :title="isBookDisabled(book) ? '图书有借阅记录，无法批量操作' : '选择此图书'"
-                >
-              </td>
-              <td class="book-title">{{ book.title }}</td>
-              <td>{{ book.author }}</td>
-              <td><span class="category-tag">{{ book.category_name }}</span></td>
-              <td>{{ book.publisher || '-' }}</td>
-              <td class="isbn-cell">{{ book.isbn || '-' }}</td>
-              <td>{{ formatPublishDate(book.publish_date) }}</td>
-              <td class="stock-cell">
-                <span class="stock-info">
-                  <span class="total-stock">{{ book.stock }}</span>
-                  <span class="separator">/</span>
-                  <span class="available-stock" :class="{ 'no-stock': book.available <= 0 }">
-                    {{ book.available }}
-                  </span>
-                </span>
-              </td>
-              <td>
-                <button 
-                  @click="borrowBook(book)"
-                  class="borrow-button"
-                  :disabled="book.available <= 0"
-                  :title="book.available <= 0 ? '库存不足' : '点击借阅'"
-                >
-                  {{ book.available <= 0 ? '无库存' : '借阅' }}
-                </button>
-                <button 
-                  @click="viewBookDetail(book)"
-                  class="detail-button"
-                  title="查看详情"
-                >
-                  详情
-                </button>
-                <!-- 移除还书按钮 - 还书功能应在借阅记录页面处理 -->
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        
-        <!-- 分页控件 -->
-        <div class="pagination-container">
-          <div class="pagination-info">
-            共 {{ pagination.total }} 条记录，当前第 {{ pagination.currentPage }} 页，共 {{ totalPages }} 页
-          </div>
-          
+      <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+        <div>
+          <p class="text-sm text-textSecondary">
+            显示第 <span class="font-medium">{{ (pagination.currentPage - 1) * pagination.pageSize + 1 }}</span> 至 
+            <span class="font-medium">{{ Math.min(pagination.currentPage * pagination.pageSize, pagination.total) }}</span> 条，
+            共 <span class="font-medium">{{ pagination.total }}</span> 条结果
+          </p>
+        </div>
+        <div class="flex items-center gap-4">
           <!-- 每页条数选择 -->
-          <div class="page-size-selector">
-            <label for="pageSize">每页显示：</label>
-            <select id="pageSize" v-model="pagination.pageSize" @change="changePageSize" class="page-size-select">
+          <div class="flex items-center gap-2">
+            <label class="text-sm text-textSecondary">每页显示：</label>
+            <select 
+              v-model="pagination.pageSize" 
+              @change="changePageSize" 
+              class="border border-borderMedium rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+            >
               <option :value="10">10条</option>
               <option :value="20">20条</option>
               <option :value="50">50条</option>
@@ -304,78 +266,85 @@
             </select>
           </div>
           
-          <div class="pagination-controls">
-            <!-- 首页按钮 -->
-            <button
+          <!-- 分页按钮 -->
+          <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+            <button 
               @click="changePage(1)"
               :disabled="pagination.currentPage === 1"
-              class="pagination-button"
-              title="首页"
+              class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-borderMedium bg-white text-sm font-medium text-textSecondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              首页
+              <span class="sr-only">首页</span>
+              <i class="fa fa-angle-double-left text-xs"></i>
             </button>
-            
-            <!-- 上一页按钮 -->
-            <button
+            <button 
               @click="changePage(pagination.currentPage - 1)"
               :disabled="pagination.currentPage === 1"
-              class="pagination-button"
-              title="上一页"
+              class="relative inline-flex items-center px-2 py-2 border border-borderMedium bg-white text-sm font-medium text-textSecondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              上一页
+              <span class="sr-only">上一页</span>
+              <i class="fa fa-chevron-left text-xs"></i>
             </button>
             
-            <!-- 页码数字 -->
-            <div class="page-numbers">
-              <button
-                v-for="page in pageNumbers"
-                :key="page"
+            <!-- 页码 -->
+            <span v-for="page in pageNumbers" :key="page">
+              <span v-if="page === '...'" class="relative inline-flex items-center px-4 py-2 border border-borderMedium bg-white text-sm font-medium text-textSecondary">
+                ...
+              </span>
+              <button 
+                v-else
                 @click="changePage(page)"
-                :class="{ 'active': page === pagination.currentPage, 'ellipsis': page === '...' }"
-                :disabled="page === '...'"
-                class="page-button"
+                :class="[
+                  'relative inline-flex items-center px-4 py-2 border text-sm font-medium',
+                  page === pagination.currentPage 
+                    ? 'bg-primary text-white border-primary' 
+                    : 'bg-white border-borderMedium text-textPrimary hover:bg-gray-50'
+                ]"
               >
                 {{ page }}
               </button>
-            </div>
+            </span>
             
-            <!-- 下一页按钮 -->
-            <button
+            <button 
               @click="changePage(pagination.currentPage + 1)"
               :disabled="pagination.currentPage >= totalPages"
-              class="pagination-button"
-              title="下一页"
+              class="relative inline-flex items-center px-2 py-2 border border-borderMedium bg-white text-sm font-medium text-textSecondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              下一页
+              <span class="sr-only">下一页</span>
+              <i class="fa fa-chevron-right text-xs"></i>
             </button>
-            
-            <!-- 末页按钮 -->
-            <button
+            <button 
               @click="changePage(totalPages)"
               :disabled="pagination.currentPage >= totalPages"
-              class="pagination-button"
-              title="末页"
+              class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-borderMedium bg-white text-sm font-medium text-textSecondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              末页
+              <span class="sr-only">末页</span>
+              <i class="fa fa-angle-double-right text-xs"></i>
             </button>
-            
-            <!-- 页码跳转 -->
-            <div class="page-jump">
-              <span>跳转至</span>
-              <input 
-                type="number" 
-                v-model="jumpToPage" 
-                @keyup.enter="handlePageJump"
-                :min="1" 
-                :max="totalPages"
-                class="page-jump-input"
-                placeholder="页码"
-              >
-              <button @click="handlePageJump" class="jump-button">跳转</button>
-            </div>
+          </nav>
+          
+          <!-- 页码跳转 -->
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-textSecondary">跳转至</span>
+            <input 
+              type="number" 
+              v-model="jumpToPage" 
+              @keyup.enter="handlePageJump"
+              :min="1" 
+              :max="totalPages"
+              class="w-16 px-2 py-1 border border-borderMedium rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+              placeholder="页码"
+            >
+            <button 
+              @click="handlePageJump" 
+              class="px-3 py-1 bg-primary text-white text-sm rounded hover:bg-primary/90 transition-colors"
+            >
+              跳转
+            </button>
           </div>
         </div>
       </div>
+    </div>
+  </div>
     
     <!-- 借阅确认弹窗 -->
     <div v-if="isBorrowModalVisible" class="modal-overlay">
@@ -1525,6 +1494,33 @@ export default {
     },
     
     /**
+     * 显示添加图书弹窗
+     */
+    showAddBookModal() {
+      console.log('显示添加图书弹窗');
+      // TODO: 实现添加图书功能
+      alert('添加图书功能正在开发中...');
+    },
+
+    /**
+     * 显示导入对话框
+     */
+    showImportDialog() {
+      console.log('显示导入对话框');
+      // TODO: 实现导入功能
+      alert('导入图书功能正在开发中...');
+    },
+
+    /**
+     * 导出图书数据
+     */
+    async exportBooks() {
+      console.log('导出图书数据');
+      // TODO: 实现导出功能
+      alert('导出图书功能正在开发中...');
+    },
+
+    /**
      * 确认批量修改分类
      */
     async confirmBatchCategoryUpdate() {
@@ -2471,191 +2467,7 @@ export default {
   cursor: not-allowed;
 }
 
-/* 分页控件样式 - 增强版 */
-.pagination-container {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  align-items: center;
-  margin-top: 20px;
-  padding: 20px;
-  background-color: #f9fafb;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-}
-
-.pagination-info {
-  color: #6b7280;
-  font-size: 14px;
-  font-weight: 500;
-  text-align: center;
-}
-
-.page-size-selector {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  color: #374151;
-  font-weight: 500;
-}
-
-.page-size-select {
-  padding: 6px 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 14px;
-  background-color: white;
-  cursor: pointer;
-  transition: all 0.2s;
-  min-width: 80px;
-}
-
-.page-size-select:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.page-size-select:hover {
-  border-color: #9ca3af;
-}
-
-.pagination-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.pagination-button {
-  padding: 8px 14px;
-  border: 1px solid #d1d5db;
-  background-color: white;
-  color: #374151;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s;
-  min-width: 80px;
-}
-
-.pagination-button:hover:not(:disabled) {
-  background-color: #f3f4f6;
-  border-color: #9ca3af;
-  color: #1f2937;
-}
-
-.pagination-button:disabled {
-  background-color: #f9fafb;
-  color: #9ca3af;
-  cursor: not-allowed;
-  border-color: #e5e7eb;
-}
-
-.page-numbers {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-}
-
-.page-button {
-  padding: 8px 12px;
-  border: 1px solid #d1d5db;
-  background-color: white;
-  color: #374151;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  min-width: 40px;
-  text-align: center;
-  transition: all 0.2s;
-}
-
-.page-button:hover:not(:disabled):not(.active):not(.ellipsis) {
-  background-color: #f3f4f6;
-  border-color: #9ca3af;
-  color: #1f2937;
-}
-
-.page-button.active {
-  background-color: #3b82f6;
-  color: white;
-  border-color: #3b82f6;
-  font-weight: 600;
-}
-
-.page-button.ellipsis {
-  background-color: transparent;
-  border: none;
-  cursor: default;
-  color: #9ca3af;
-  font-weight: normal;
-}
-
-.page-button:disabled {
-  cursor: not-allowed;
-  background-color: transparent;
-  border: none;
-  color: #9ca3af;
-}
-
-.page-jump {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: 15px;
-  padding-left: 15px;
-  border-left: 1px solid #d1d5db;
-  font-size: 14px;
-  color: #374151;
-  font-weight: 500;
-}
-
-.page-jump-input {
-  width: 70px;
-  padding: 8px 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  text-align: center;
-  font-size: 14px;
-  transition: all 0.2s;
-}
-
-.page-jump-input:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.page-jump-input:hover {
-  border-color: #9ca3af;
-}
-
-.jump-button {
-  padding: 8px 14px;
-  background-color: #3b82f6;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-
-.jump-button:hover {
-  background-color: #2563eb;
-  transform: translateY(-1px);
-}
-
-.jump-button:active {
-  background-color: #1d4ed8;
-  transform: translateY(0);
-}
+/* 简化：使用Tailwind CSS替代自定义分页样式 */
 
 /* 响应式设计 */
 @media (max-width: 768px) {
@@ -2678,209 +2490,107 @@ export default {
   }
 }
 
-/* 第3阶段新增：批量操作相关样式 */
+/* 简化：使用Tailwind CSS替代自定义批量操作样式 */
 
-/* 批量操作工具栏 */
-.batch-operations-toolbar {
+/* 保留必要的模态框样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  animation: modalFadeIn 0.3s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 15px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.selected-info {
-  display: flex;
-  align-items: center;
-  font-weight: 500;
-}
-
-.selected-count {
-  background-color: rgba(255, 255, 255, 0.2);
-  padding: 4px 12px;
-  border-radius: 16px;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.batch-buttons {
-  display: flex;
-  gap: 10px;
-}
-
-.batch-delete-btn {
-  background-color: #ef4444;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-
-.batch-delete-btn:hover:not(:disabled) {
-  background-color: #dc2626;
-  transform: translateY(-1px);
-}
-
-.batch-delete-btn:disabled {
-  background-color: #9ca3af;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.batch-category-btn {
-  background-color: #3b82f6;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-
-.batch-category-btn:hover:not(:disabled) {
-  background-color: #2563eb;
-  transform: translateY(-1px);
-}
-
-.batch-category-btn:disabled {
-  background-color: #9ca3af;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.cancel-selection-btn {
-  background-color: rgba(255, 255, 255, 0.2);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  padding: 8px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-
-.cancel-selection-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.5);
-}
-
-/* 表格复选框列 */
-.checkbox-column {
-  width: 50px;
-  text-align: center;
-}
-
-.checkbox-column input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  transform: scale(1.2);
-}
-
-.checkbox-column input[type="checkbox"]:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-/* 选中行高亮 */
-.selected-row {
-  background-color: #eff6ff !important;
-  border-left: 4px solid #3b82f6;
-}
-
-.selected-row:hover {
-  background-color: #dbeafe !important;
-}
-
-/* 批量操作弹窗样式 */
-.warning-message {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 15px;
-  background-color: #fef3c7;
-  border: 1px solid #f59e0b;
-  border-radius: 6px;
-  margin-bottom: 20px;
-}
-
-.warning-icon {
-  font-size: 20px;
-  margin-top: 2px;
-}
-
-.warning-message p {
-  margin: 0;
-  color: #92400e;
-  font-weight: 500;
-}
-
-.danger-text {
-  color: #b91c1c !important;
-  font-weight: 600 !important;
-  margin-top: 5px !important;
-}
-
-.info-text {
-  color: #059669 !important;
-  font-weight: 500 !important;
-  margin-top: 8px !important;
-  font-size: 14px !important;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.info-icon {
-  font-size: 16px;
-}
-
-.selected-books-preview {
-  margin-top: 20px;
-}
-
-.selected-books-preview h4 {
-  margin: 0 0 10px 0;
-  color: #374151;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.book-list {
-  max-height: 200px;
-  overflow-y: auto;
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  background-color: #f9fafb;
-}
-
-.book-item {
-  padding: 8px 12px;
   border-bottom: 1px solid #e5e7eb;
-  font-size: 14px;
-  color: #374151;
 }
 
-.book-item:last-child {
-  border-bottom: none;
+.modal-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 18px;
 }
 
-.book-item:nth-child(even) {
+.close-button {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.close-button:hover {
   background-color: #f3f4f6;
+  color: #6b7280;
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 15px 20px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.cancel-button {
+  background-color: #f3f4f6;
+  color: #333;
+  border: 1px solid #ddd;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.confirm-button {
+  background-color: #2563eb;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .danger-button {
@@ -2892,432 +2602,6 @@ export default {
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  transition: all 0.2s;
 }
 
-.danger-button:hover:not(:disabled) {
-  background-color: #dc2626;
-}
-
-.danger-button:disabled {
-  background-color: #9ca3af;
-  cursor: not-allowed;
-}
-
-.loading-text {
-  font-size: 12px;
-  color: #6b7280;
-  margin-top: 5px;
-  font-style: italic;
-}
-
-/* 响应式批量操作 */
-@media (max-width: 768px) {
-  .batch-operations-toolbar {
-    flex-direction: column;
-    gap: 10px;
-    align-items: stretch;
-  }
-  
-  .batch-buttons {
-    justify-content: center;
-  }
-  
-  .checkbox-column {
-    width: 40px;
-  }
-  
-  .book-list {
-    max-height: 150px;
-  }
-}
-
-/* 第3阶段新增：导入功能样式 */
-
-/* 操作工具栏样式 */
-.operations-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  margin-bottom: 15px;
-  padding: 10px 0;
-}
-
-/* 导入按钮样式 */
-.import-btn {
-  background-color: #16a34a;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  margin-right: 10px;
-  transition: all 0.2s;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.import-btn:hover:not(:disabled) {
-  background-color: #15803d;
-  transform: translateY(-1px);
-}
-
-.import-btn:disabled {
-  background-color: #9ca3af;
-  cursor: not-allowed;
-  transform: none;
-}
-
-/* 导出按钮样式 */
-.export-btn {
-  background-color: #0891b2;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  margin-right: 10px;
-  transition: all 0.2s;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.export-btn:hover:not(:disabled) {
-  background-color: #0e7490;
-  transform: translateY(-1px);
-}
-
-.export-btn:disabled {
-  background-color: #9ca3af;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.icon-import {
-  font-size: 16px;
-  margin-right: 4px;
-}
-
-/* 导入弹窗样式 */
-.import-modal {
-  max-width: 800px;
-  width: 95%;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-.import-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 25px;
-}
-
-.step-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 15px;
-  padding: 20px;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  transition: all 0.3s;
-}
-
-.step-item.active {
-  border-color: #3b82f6;
-  background-color: #eff6ff;
-}
-
-.step-number {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background-color: #e5e7eb;
-  color: #6b7280;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  font-size: 14px;
-  flex-shrink: 0;
-}
-
-.step-item.active .step-number {
-  background-color: #3b82f6;
-  color: white;
-}
-
-.step-content {
-  flex: 1;
-}
-
-.step-content h4 {
-  margin: 0 0 8px 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.step-content p {
-  margin: 0 0 15px 0;
-  color: #6b7280;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-/* 模板下载按钮 */
-.template-btn {
-  background-color: #3b82f6;
-  color: white;
-  border: none;
-  padding: 10px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  transition: all 0.2s;
-}
-
-.template-btn:hover {
-  background-color: #2563eb;
-  transform: translateY(-1px);
-}
-
-.icon-download {
-  font-size: 16px;
-}
-
-/* 文件上传区域 */
-.file-upload-area {
-  border: 2px dashed #d1d5db;
-  border-radius: 8px;
-  padding: 30px 20px;
-  text-align: center;
-  transition: all 0.2s;
-  cursor: pointer;
-  margin-bottom: 15px;
-}
-
-.file-upload-area:hover {
-  border-color: #3b82f6;
-  background-color: #f8fafc;
-}
-
-.file-upload-area.has-file {
-  border-color: #16a34a;
-  background-color: #f0fdf4;
-}
-
-.file-input {
-  display: none;
-}
-
-.upload-content {
-  cursor: pointer;
-}
-
-.upload-placeholder {
-  color: #6b7280;
-}
-
-.upload-placeholder .icon-upload {
-  font-size: 24px;
-  margin-bottom: 10px;
-  display: block;
-}
-
-.upload-placeholder p {
-  margin: 5px 0;
-}
-
-.file-hint {
-  font-size: 12px;
-  color: #9ca3af;
-}
-
-.file-selected {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: #16a34a;
-  font-weight: 500;
-}
-
-.icon-file {
-  font-size: 20px;
-}
-
-.file-name {
-  font-weight: 600;
-}
-
-.file-size {
-  color: #6b7280;
-  font-size: 12px;
-  font-weight: normal;
-}
-
-.clear-file-btn {
-  background-color: #ef4444;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  cursor: pointer;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: 8px;
-}
-
-.clear-file-btn:hover {
-  background-color: #dc2626;
-}
-
-/* 解析按钮 */
-.parse-btn {
-  background-color: #f59e0b;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-
-.parse-btn:hover:not(:disabled) {
-  background-color: #d97706;
-  transform: translateY(-1px);
-}
-
-.parse-btn:disabled {
-  background-color: #9ca3af;
-  cursor: not-allowed;
-  transform: none;
-}
-
-/* 预览区域 */
-.preview-section {
-  margin-top: 15px;
-}
-
-.preview-summary {
-  background-color: #f0f9ff;
-  border: 1px solid #bae6fd;
-  border-radius: 6px;
-  padding: 15px;
-  margin-bottom: 20px;
-}
-
-.preview-summary p {
-  margin: 0 0 10px 0;
-  color: #0369a1;
-  font-weight: 500;
-}
-
-.preview-errors {
-  margin-top: 15px;
-}
-
-.preview-errors h5 {
-  margin: 0 0 10px 0;
-  color: #dc2626;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.preview-errors ul {
-  margin: 0;
-  padding-left: 20px;
-}
-
-.error-item {
-  color: #dc2626;
-  font-size: 13px;
-  margin-bottom: 5px;
-}
-
-.preview-table h5 {
-  margin: 0 0 15px 0;
-  color: #1f2937;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.sample-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-  background-color: white;
-  border-radius: 6px;
-  overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.sample-table th,
-.sample-table td {
-  padding: 8px 10px;
-  text-align: left;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.sample-table th {
-  background-color: #f9fafb;
-  font-weight: 600;
-  color: #374151;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.sample-table td {
-  color: #6b7280;
-}
-
-.sample-table tr:last-child td {
-  border-bottom: none;
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .import-modal {
-    width: 100%;
-    margin: 10px;
-    max-width: calc(100% - 20px);
-  }
-  
-  .step-item {
-    flex-direction: column;
-    text-align: center;
-  }
-  
-  .step-number {
-    align-self: center;
-  }
-  
-  .file-upload-area {
-    padding: 20px 15px;
-  }
-  
-  .sample-table {
-    font-size: 10px;
-  }
-  
-  .sample-table th,
-  .sample-table td {
-    padding: 6px 8px;
-  }
-}</style>
+/* 简化：已移除导入相关样式，使用Tailwind CSS */</style>
