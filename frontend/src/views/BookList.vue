@@ -729,6 +729,18 @@ export default {
       importPreview: null,              // 导入数据预览
       // 第3阶段新增：导出相关状态
       isProcessingExport: false,        // 导出处理状态
+      // 添加图书相关状态
+      showAddBookModal: false,          // 添加图书弹窗显示状态
+      isProcessingAdd: false,           // 添加图书处理状态
+      newBook: {                        // 新图书信息
+        title: '',
+        author: '',
+        isbn: '',
+        publisher: '',
+        category_id: '',
+        stock: 1,
+        description: ''
+      },
       // 移除还书相关状态 - 还书功能应在借阅记录页面处理
     };
   },
@@ -1496,10 +1508,88 @@ export default {
     /**
      * 显示添加图书弹窗
      */
-    showAddBookModal() {
+    async showAddBookModal() {
       console.log('显示添加图书弹窗');
-      // TODO: 实现添加图书功能
-      alert('添加图书功能正在开发中...');
+      // 加载分类列表
+      await this.loadCategories();
+      // 重置表单数据
+      this.newBook = {
+        title: '',
+        author: '',
+        isbn: '',
+        publisher: '',
+        category_id: '',
+        stock: 1,
+        description: ''
+      };
+      this.showAddBookModal = true;
+    },
+    
+    /**
+     * 关闭添加图书弹窗
+     */
+    closeAddBookModal() {
+      this.showAddBookModal = false;
+    },
+    
+    /**
+     * 确认添加图书
+     */
+    async confirmAddBook() {
+      // 表单验证
+      if (!this.newBook.title.trim()) {
+        alert('请输入书名');
+        return;
+      }
+      
+      if (!this.newBook.author.trim()) {
+        alert('请输入作者');
+        return;
+      }
+      
+      if (!this.newBook.category_id) {
+        alert('请选择分类');
+        return;
+      }
+      
+      if (!this.newBook.stock || this.newBook.stock < 1) {
+        alert('库存数量必须大于0');
+        return;
+      }
+      
+      this.isProcessingAdd = true;
+      
+      try {
+        // 准备数据
+        const bookData = {
+          title: this.newBook.title.trim(),
+          author: this.newBook.author.trim(),
+          isbn: this.newBook.isbn.trim() || null,
+          publisher: this.newBook.publisher.trim() || null,
+          category_id: parseInt(this.newBook.category_id),
+          stock: parseInt(this.newBook.stock),
+          description: this.newBook.description.trim() || null
+        };
+        
+        console.log('添加图书数据:', bookData);
+        
+        // 调用API添加图书
+        const response = await bookAPI.addBook(bookData);
+        
+        if (response.code === 200) {
+          alert('图书添加成功！');
+          this.closeAddBookModal();
+          // 刷新图书列表
+          await this.fetchBooks();
+        } else {
+          alert('添加失败: ' + (response.msg || '未知错误'));
+        }
+      } catch (error) {
+        console.error('添加图书失败:', error);
+        alert('添加图书失败: ' + (error.message || '网络错误'));
+      } finally {
+        this.isProcessingAdd = false;
+      }
     },
 
     /**
@@ -2604,4 +2694,135 @@ export default {
   font-weight: 500;
 }
 
-/* 简化：已移除导入相关样式，使用Tailwind CSS */</style>
+/* 简化：已移除导入相关样式，使用Tailwind CSS */
+
+/* 添加图书表单样式 */
+.form-row {
+  display: flex;
+  gap: 15px;
+}
+
+.form-row .form-group {
+  flex: 1;
+}
+
+@media (max-width: 768px) {
+  .form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+}
+</style>
+
+<!-- 添加图书弹窗 -->
+<div v-if="showAddBookModal" class="modal-overlay">
+  <div class="modal-content" style="max-width: 600px;">
+    <div class="modal-header">
+      <h3>添加图书</h3>
+      <button @click="closeAddBookModal" class="close-button">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form @submit.prevent="confirmAddBook">
+        <div class="form-group">
+          <label for="bookTitle">书名 *</label>
+          <input 
+            type="text" 
+            id="bookTitle" 
+            v-model="newBook.title"
+            class="form-control"
+            required
+            placeholder="请输入书名"
+          >
+        </div>
+        
+        <div class="form-group">
+          <label for="bookAuthor">作者 *</label>
+          <input 
+            type="text" 
+            id="bookAuthor" 
+            v-model="newBook.author"
+            class="form-control"
+            required
+            placeholder="请输入作者"
+          >
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label for="bookIsbn">ISBN</label>
+            <input 
+              type="text" 
+              id="bookIsbn" 
+              v-model="newBook.isbn"
+              class="form-control"
+              placeholder="请输入ISBN号"
+            >
+          </div>
+          
+          <div class="form-group">
+            <label for="bookStock">库存数量 *</label>
+            <input 
+              type="number" 
+              id="bookStock" 
+              v-model.number="newBook.stock"
+              class="form-control"
+              min="1"
+              required
+            >
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="bookCategory">分类 *</label>
+          <select 
+            id="bookCategory" 
+            v-model="newBook.category_id"
+            class="form-control"
+            required
+          >
+            <option value="">请选择分类</option>
+            <option 
+              v-for="category in batchCategories" 
+              :key="category.category_id" 
+              :value="category.category_id"
+            >
+              {{ category.category_name }}
+            </option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label for="bookPublisher">出版社</label>
+          <input 
+            type="text" 
+            id="bookPublisher" 
+            v-model="newBook.publisher"
+            class="form-control"
+            placeholder="请输入出版社"
+          >
+        </div>
+        
+        <div class="form-group">
+          <label for="bookDescription">描述</label>
+          <textarea 
+            id="bookDescription" 
+            v-model="newBook.description"
+            class="form-control"
+            rows="3"
+            placeholder="请输入图书描述"
+          ></textarea>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button @click="closeAddBookModal" class="cancel-button">取消</button>
+      <button 
+        @click="confirmAddBook" 
+        class="confirm-button"
+        :disabled="isProcessingAdd"
+      >
+        {{ isProcessingAdd ? '添加中...' : '确认添加' }}
+      </button>
+    </div>
+  </div>
+</div>

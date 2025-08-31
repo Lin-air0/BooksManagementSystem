@@ -502,72 +502,6 @@ router.post('/', async (req, res) => {
  *       500:
  *         description: 服务器错误
  */
-router.get('/:id', async (req, res) => {
-  try {
-    const bookId = parseInt(req.params.id);
-    
-    if (isNaN(bookId) || bookId <= 0) {
-      return res.status(400).json({
-        code: 400,
-        data: null,
-        msg: '图书ID格式错误'
-      });
-    }
-    
-    console.log('获取图书详情，ID:', bookId);
-    
-    // 查询图书详细信息，包含分类信息
-    const sql = `
-      SELECT b.book_id, b.title, b.author, b.isbn, b.publisher, b.publish_date, 
-             b.stock, b.available, b.category_id, b.metadata, b.created_at,
-             bc.name as category_name
-      FROM books b 
-      LEFT JOIN book_categories bc ON b.category_id = bc.category_id
-      WHERE b.book_id = ?
-    `;
-    
-    const result = await query(sql, [bookId]);
-    
-    if (result.length === 0) {
-      return res.status(404).json({
-        code: 404,
-        data: null,
-        msg: '图书不存在'
-      });
-    }
-    
-    const book = result[0];
-    
-    // 解析metadata字段
-    if (book.metadata) {
-      try {
-        book.metadata = JSON.parse(book.metadata);
-      } catch (error) {
-        console.warn('解析metadata失败:', error);
-        book.metadata = {};
-      }
-    } else {
-      book.metadata = {};
-    }
-    
-    console.log('获取图书详情成功:', book.title);
-    
-    res.json({
-      code: 200,
-      data: book,
-      msg: '获取成功'
-    });
-    
-  } catch (error) {
-    console.error('获取图书详情失败:', error);
-    res.status(500).json({
-      code: 500,
-      data: null,
-      msg: `获取失败: ${error.message}`
-    });
-  }
-});
-
 router.get('/export', async (req, res) => {
   try {
     const { format = 'xlsx', category_id, publisher } = req.query;
@@ -1452,5 +1386,122 @@ function cleanBookData(bookData, categoryMap) {
   return cleaned;
 }
 
+
+/**
+ * @swagger
+ * /api/books/{id}:
+ *   get:
+ *     summary: 获取图书详情
+ *     description: 根据图书ID获取详细信息
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: 图书ID
+ *     responses:
+ *       200:
+ *         description: 获取成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code: { type: integer, example: 200 }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     book_id: { type: integer }
+ *                     title: { type: string }
+ *                     author: { type: string }
+ *                     isbn: { type: string }
+ *                     publisher: { type: string }
+ *                     publish_date: { type: string }
+ *                     stock: { type: integer }
+ *                     available: { type: integer }
+ *                     category_id: { type: integer }
+ *                     category_name: { type: string }
+ *                     metadata: { type: object }
+ *                     created_at: { type: string }
+ *                 msg: { type: string, example: '获取成功' }
+ *       404:
+ *         description: 图书不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code: { type: integer, example: 404 }
+ *                 data: { type: null }
+ *                 msg: { type: string, example: '图书不存在' }
+ *       500:
+ *         description: 服务器错误
+ */
+router.get('/:id', async (req, res) => {
+  try {
+    const bookId = parseInt(req.params.id);
+    
+    if (isNaN(bookId) || bookId <= 0) {
+      return res.status(400).json({
+        code: 400,
+        data: null,
+        msg: '图书ID格式错误'
+      });
+    }
+    
+    console.log('获取图书详情，ID:', bookId);
+    
+    // 查询图书详细信息，包含分类信息
+    const sql = `
+      SELECT b.book_id, b.title, b.author, b.isbn, b.publisher, b.publish_date, 
+             b.stock, b.available, b.category_id, b.metadata, b.created_at,
+             bc.name as category_name
+      FROM books b 
+      LEFT JOIN book_categories bc ON b.category_id = bc.category_id
+      WHERE b.book_id = ?
+    `;
+    
+    const result = await query(sql, [bookId]);
+    
+    if (result.length === 0) {
+      return res.status(404).json({
+        code: 404,
+        data: null,
+        msg: '图书不存在'
+      });
+    }
+    
+    const book = result[0];
+    
+    // 解析metadata字段
+    if (book.metadata) {
+      try {
+        book.metadata = JSON.parse(book.metadata);
+      } catch (error) {
+        console.warn('解析metadata失败:', error);
+        book.metadata = {};
+      }
+    } else {
+      book.metadata = {};
+    }
+    
+    console.log('获取图书详情成功:', book.title);
+    
+    res.json({
+      code: 200,
+      data: book,
+      msg: '获取成功'
+    });
+    
+  } catch (error) {
+    console.error('获取图书详情失败:', error);
+    res.status(500).json({
+      code: 500,
+      data: null,
+      msg: `获取失败: ${error.message}`
+    });
+  }
+});
 
 module.exports = router;

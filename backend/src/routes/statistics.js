@@ -2,6 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/db.js');
+const XLSX = require('xlsx');
 
 // 查询函数 - 使用连接而不是连接池
 async function query(sql, params = []) {
@@ -1265,5 +1266,245 @@ function getWeekNumber(date) {
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
+
+/**
+ * @swagger
+ * /api/statistics/export:
+ *   get:
+ *     summary: 导出统计报表
+ *     description: 导出统计分析数据为Excel报表
+ *     parameters:
+ *       - name: period
+ *         in: query
+ *         description: 统计周期（month/quarter/halfyear/year）
+ *         required: false
+ *         schema: { type: 'string', default: 'quarter' }
+ *       - name: format
+ *         in: query
+ *         description: 导出格式（xlsx/csv）
+ *         required: false
+ *         schema: { type: 'string', default: 'xlsx' }
+ *     responses:
+ *       200:
+ *         description: 导出成功
+ *         content:
+ *           application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       500:
+ *         description: 服务器错误
+ */
+router.get('/export', async (req, res) => {
+  try {
+    const { period = 'quarter', format = 'xlsx' } = req.query;
+    
+    console.log('导出统计报表请求:', { period, format });
+    
+    // 1. 获取分类借阅统计数据
+    let categoryStats = [];
+    try {
+      categoryStats = await query(`
+        SELECT 
+          bc.category_id,
+          bc.name as category_name,
+          bc.description,
+          COALESCE(COUNT(b.book_id), 0) as book_count,
+          COALESCE(SUM(b.stock), 0) as total_stock,
+          COALESCE(SUM(b.available), 0) as available_stock
+        FROM book_categories bc
+        LEFT JOIN books b ON bc.category_id = b.category_id
+        GROUP BY bc.category_id, bc.name, bc.description
+        ORDER BY book_count DESC, bc.name
+      `);
+      console.log('分类统计数据数量:', categoryStats.length);
+    } catch (error) {
+      console.error('获取分类统计数据失败:', error);
+    }
+    
+    // 2. 获取月度借阅趋势数据
+    let monthlyTrendResults = [];
+    try {
+      const monthsNum = period === 'month' ? 1 : 
+                       period === 'quarter' ? 3 : 
+                       period === 'halfyear' ? 6 : 12;
+      
+      const monthlyTrendSql = `
+        SELECT 
+          YEAR(borrow_date) as year,
+          MONTH(borrow_date) as month,
+          COUNT(*) as borrow_count,
+          SUM(CASE WHEN return_date IS NOT NULL THEN 1 ELSE 0 END) as return_count,
+          SUM(CASE 
+            WHEN return_date IS NULL AND due_date < NOW() THEN 1 
+            WHEN return_date IS NOT NULL AND return_date > due_date THEN 1
+            ELSE 0 
+          END) as overdue_count
+        FROM borrows
+        WHERE borrow_date >= DATE_SUB(NOW(), INTERVAL ? MONTH)
+        GROUP BY YEAR(borrow_date), MONTH(borrow_date)
+        ORDER BY year, month
+      `;
+      
+      monthlyTrendResults = await query(monthlyTrendSql, [monthsNum]);
+      console.log('月度趋势数据数量:', monthlyTrendResults.length);
+    } catch (error) {
+      console.error('获取月度趋势数据失败:', error);
+    }
+    
+    // 3. 获取读者类型分布数据
+    let readerTypeResults = [];
+    try {
+      const readerTypeSql = `
+        SELECT 
+          r.type as reader_type,
+          COUNT(DISTINCT r.reader_id) as reader_count,
+          COUNT(br.borrow_id) as borrow_count
+        FROM readers r
+        LEFT JOIN borrows br ON r.reader_id = br.reader_id
+        GROUP BY r.type
+        ORDER BY borrow_count DESC
+      `;
+      
+      readerTypeResults = await query(readerTypeSql);
+      console.log('读者类型数据数量:', readerTypeResults.length);
+    } catch (error) {
+      console.error('获取读者类型数据失败:', error);
+    }
+    
+    // 4. 获取热门图书TOP10数据
+    let popularBooksResults = [];
+    try {
+      const popularBooksSql = `
+        SELECT 
+          b.book_id,
+          b.title,
+          b.author,
+          bc.name as category_name,
+          b.available,
+          b.stock,
+          COUNT(br.borrow_id) as borrow_count
+        FROM books b
+        LEFT JOIN book_categories bc ON b.category_id = bc.category_id
+        LEFT JOIN borrows br ON b.book_id = br.book_id
+        GROUP BY b.book_id, b.title, b.author, bc.name, b.available, b.stock
+        ORDER BY borrow_count DESC, b.book_id ASC
+        LIMIT 10
+      `;
+      
+      popularBooksResults = await query(popularBooksSql);
+      console.log('热门图书数据数量:', popularBooksResults.length);
+    } catch (error) {
+      console.error('获取热门图书数据失败:', error);
+    }
+    
+    // 创建工作簿
+    const workbook = XLSX.utils.book_new();
+    
+    try {
+      // 1. 分类借阅统计表
+      const categorySheetData = categoryStats.map((item, index) => ({
+        '排名': index + 1,
+        '分类名称': item.category_name || '',
+        '图书数量': parseInt(item.book_count) || 0,
+        '总库存': parseInt(item.total_stock) || 0,
+        '可借数量': parseInt(item.available_stock) || 0
+      }));
+      
+      const categoryWorksheet = XLSX.utils.json_to_sheet(categorySheetData);
+      XLSX.utils.book_append_sheet(workbook, categoryWorksheet, '分类借阅统计');
+    } catch (error) {
+      console.error('创建分类统计表失败:', error);
+    }
+    
+    try {
+      // 2. 月度借阅趋势表
+      const monthlySheetData = monthlyTrendResults.map((item, index) => {
+        // 添加空值检查
+        const year = item.year || '';
+        const month = item.month ? item.month.toString().padStart(2, '0') : '';
+        return {
+          '排名': index + 1,
+          '月份': year && month ? `${year}-${month}` : '',
+          '借阅量': parseInt(item.borrow_count) || 0,
+          '归还量': parseInt(item.return_count) || 0,
+          '逾期量': parseInt(item.overdue_count) || 0
+        };
+      });
+      
+      const monthlyWorksheet = XLSX.utils.json_to_sheet(monthlySheetData);
+      XLSX.utils.book_append_sheet(workbook, monthlyWorksheet, '月度借阅趋势');
+    } catch (error) {
+      console.error('创建月度趋势表失败:', error);
+    }
+    
+    try {
+      // 3. 读者类型分布表
+      const readerTypeSheetData = readerTypeResults.map((item, index) => ({
+        '排名': index + 1,
+        '读者类型': item.reader_type === 'student' ? '学生' : 
+                    item.reader_type === 'teacher' ? '教师' : 
+                    item.reader_type || '其他',
+        '人数': parseInt(item.reader_count) || 0,
+        '借阅次数': parseInt(item.borrow_count) || 0
+      }));
+      
+      const readerTypeWorksheet = XLSX.utils.json_to_sheet(readerTypeSheetData);
+      XLSX.utils.book_append_sheet(workbook, readerTypeWorksheet, '读者类型分布');
+    } catch (error) {
+      console.error('创建读者类型表失败:', error);
+    }
+    
+    try {
+      // 4. 热门图书TOP10表
+      const popularBooksSheetData = popularBooksResults.map((item, index) => ({
+        '排名': index + 1,
+        '书名': item.title || '',
+        '作者': item.author || '',
+        '分类': item.category_name || '',
+        '借阅次数': parseInt(item.borrow_count) || 0
+      }));
+      
+      const popularBooksWorksheet = XLSX.utils.json_to_sheet(popularBooksSheetData);
+      XLSX.utils.book_append_sheet(workbook, popularBooksWorksheet, '热门图书TOP10');
+    } catch (error) {
+      console.error('创建热门图书表失败:', error);
+    }
+    
+    // 生成Excel文件
+    let buffer;
+    try {
+      // 使用不同的方式生成buffer以确保兼容性
+      const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+      buffer = Buffer.from(wbout);
+      console.log('Excel文件生成成功，大小:', buffer.length);
+    } catch (error) {
+      console.error('生成Excel文件失败:', error);
+      throw new Error('生成Excel文件失败: ' + error.message);
+    }
+    
+    // 设置响应头
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+    const filename = `统计报表_${timestamp}.xlsx`;
+    
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+    res.setHeader('Content-Length', buffer.length);
+    
+    console.log(`导出统计报表成功: ${filename}, 大小: ${buffer.length} bytes`);
+    
+    // 发送文件
+    res.send(buffer);
+    
+  } catch (error) {
+    console.error('导出统计报表失败:', error);
+    // 返回更详细的错误信息
+    res.status(500).json({
+      code: 500,
+      data: null,
+      msg: `导出失败: ${error.message}`
+    });
+  }
+});
 
 module.exports = router;

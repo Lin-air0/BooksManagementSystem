@@ -239,5 +239,14 @@ export const statisticsAPI = {
       params: { period, category_id, limit }
     });
   },
+  
+  // 统计报表导出API
+  exportStatistics: (params = {}) => {
+    const { period = 'quarter', format = 'xlsx' } = params;
+    return api.get('/statistics/export', {
+      params: { period, format },
+      responseType: 'blob' // 重要：设置响应类型为blob
+    });
+  },
 };
 export default api;

@@ -344,11 +344,44 @@ export default {
     async exportReport() {
       this.isExporting = true;
       try {
-        // 这里可以调用API导出报表
-        // 暂时用alert模拟
-        alert('报表导出功能待实现');
+        // 调用后端导出API
+        const response = await statisticsAPI.exportStatistics({
+          period: this.selectedPeriod,
+          format: 'xlsx'
+        });
+        
+        // 获取文件名 - 添加防御性编程处理headers可能为undefined的情况
+        const contentDisposition = response.headers && response.headers['content-disposition'];
+        let filename = '统计报表.xlsx';
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+          if (filenameMatch && filenameMatch[1]) {
+            filename = decodeURIComponent(filenameMatch[1]);
+          }
+        }
+        
+        // 创建下载链接
+        const blob = new Blob([response.data], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        
+        // 触发下载
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // 清理URL对象
+        window.URL.revokeObjectURL(url);
+        
+        // 使用alert显示成功消息，因为项目中没有引入$message组件
+        alert('报表导出成功！');
       } catch (error) {
         console.error('导出报表失败:', error);
+        // 使用alert显示错误消息
         alert('导出报表失败，请稍后重试');
       } finally {
         this.isExporting = false;
@@ -561,7 +594,6 @@ export default {
               {
                 name: '借阅量',
                 type: 'line',
-                stack: '总量',
                 data: borrowCounts,
                 itemStyle: {
                   color: '#3b82f6'
@@ -570,7 +602,6 @@ export default {
               {
                 name: '归还量',
                 type: 'line',
-                stack: '总量',
                 data: returnCounts,
                 itemStyle: {
                   color: '#10b981'
