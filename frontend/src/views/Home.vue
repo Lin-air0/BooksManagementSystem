@@ -209,8 +209,7 @@ export default {
         this.overdueBooks = borrowedRecords.filter(record => 
           record.status === 'overdue' || 
           record.actual_status === 'overdue' || 
-          record.is_overdue === 1 ||
-          (record.status === 'borrowed' && record.is_overdue === 1)
+          record.is_overdue === 1
         ).length;
         
         // 修复可借数计算：从图书数据中累加每本书的available字段
