@@ -1504,4 +1504,114 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/books/{id}:
+ *   delete:
+ *     summary: 删除图书
+ *     description: 根据图书ID删除图书信息
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: 图书ID
+ *     responses:
+ *       200:
+ *         description: 删除成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code: { type: integer, example: 200 }
+ *                 data: { type: null }
+ *                 msg: { type: string, example: '删除成功' }
+ *       404:
+ *         description: 图书不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code: { type: integer, example: 404 }
+ *                 data: { type: null }
+ *                 msg: { type: string, example: '图书不存在' }
+ *       500:
+ *         description: 服务器错误
+ */
+router.delete('/:id', async (req, res) => {
+  try {
+    const bookId = parseInt(req.params.id);
+    
+    if (isNaN(bookId) || bookId <= 0) {
+      return res.status(400).json({
+        code: 400,
+        data: null,
+        msg: '图书ID格式错误'
+      });
+    }
+    
+    console.log('删除图书，ID:', bookId);
+    
+    // 检查图书是否存在且可以删除
+    // 图书只有在没有被借阅的情况下才能删除
+    const checkSql = `
+      SELECT b.book_id, b.title, b.available, b.stock
+      FROM books b
+      WHERE b.book_id = ?
+    `;
+    
+    const checkResult = await query(checkSql, [bookId]);
+    
+    if (checkResult.length === 0) {
+      return res.status(404).json({
+        code: 404,
+        data: null,
+        msg: '图书不存在'
+      });
+    }
+    
+    const book = checkResult[0];
+    
+    // 检查是否还有未归还的图书
+    if (book.available < book.stock) {
+      return res.status(400).json({
+        code: 400,
+        data: null,
+        msg: `图书"${book.title}"还有未归还的副本，无法删除`
+      });
+    }
+    
+    // 执行删除操作
+    const deleteSql = 'DELETE FROM books WHERE book_id = ?';
+    const deleteResult = await query(deleteSql, [bookId]);
+    
+    if (deleteResult.affectedRows === 0) {
+      return res.status(404).json({
+        code: 404,
+        data: null,
+        msg: '图书不存在'
+      });
+    }
+    
+    console.log('删除图书成功:', bookId);
+    
+    res.json({
+      code: 200,
+      data: null,
+      msg: '删除成功'
+    });
+    
+  } catch (error) {
+    console.error('删除图书失败:', error);
+    res.status(500).json({
+      code: 500,
+      data: null,
+      msg: `删除失败: ${error.message}`
+    });
+  }
+});
+
 module.exports = router;

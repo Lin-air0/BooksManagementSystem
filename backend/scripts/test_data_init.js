@@ -416,15 +416,69 @@ async function initializeBaseTestData() {
       );
     }
     
-    // 插入读者
-    console.log('👥 插入读者数据...');
+    // 插入读者数据...（确保数据关联有效）
     for (const reader of testData.readers) {
       await connection.execute(
         'INSERT INTO readers (name, student_id, type, email, phone) VALUES (?, ?, ?, ?, ?)',
         [reader.name, reader.student_id, reader.type, reader.email, reader.phone]
       );
     }
-    
+
+    // 添加读者类型分布测试数据
+    const readerTypes = [
+      { type: 'student', count: 12 },
+      { type: 'teacher', count: 4 },
+      { type: 'staff', count: 2 }
+    ];
+
+    // 添加更多读者数据以支持借阅记录
+    const additionalReaders = [];
+    for (let i = 0; i < 26; i++) {
+      additionalReaders.push({
+        name: `附加读者${i+1}`,
+        student_id: `AD202400${i+1}`,
+        type: readerTypes[i % 3].type,
+        email: `additional${i+1}@example.com`,
+        phone: `138001380${String(i+1).padStart(2, '0')}`
+      });
+    }
+
+    // 插入额外读者
+    for (const reader of additionalReaders) {
+      await connection.execute(
+        'INSERT INTO readers (name, student_id, type, email, phone) VALUES (?, ?, ?, ?, ?)',
+        [reader.name, reader.student_id, reader.type, reader.email, reader.phone]
+      );
+    }
+
+    // 添加更多图书数据以支持借阅记录
+    const additionalBooks = [];
+    for (let i = 0; i < 20; i++) {
+      additionalBooks.push({
+        title: `附加图书${i+1}`,
+        author: `作者${i+1}`,
+        isbn: `978-7-5641-2315-${String(i+5).padStart(1, '0')}`,
+        publisher: `出版社${i+1}`,
+        publish_date: '2020-01-15',
+        stock: Math.floor(Math.random() * 5) + 5, // 5-9本
+        available: Math.floor(Math.random() * 5) + 5, // 随机可借数量
+        category_id: testData.categories[i % testData.categories.length].id || (i % 8 + 1),
+        metadata: JSON.stringify({ price: (Math.random() * 50 + 20).toFixed(2), description: `附加图书${i+1}描述` })
+      });
+    }
+
+    // 插入额外图书
+    for (const book of additionalBooks) {
+      const [result] = await connection.execute(
+        `INSERT INTO books (title, author, isbn, publisher, publish_date, stock, available, category_id, metadata) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [book.title, book.author, book.isbn, book.publisher, book.publish_date, book.stock, book.available, book.category_id, book.metadata]
+      );
+      // 获取插入后的book_id
+      const [insertedBook] = await connection.execute('SELECT LAST_INSERT_ID() as book_id');
+      book.book_id = insertedBook[0].book_id;
+    }
+
     // 验证数据插入
     console.log('✅ 验证数据插入结果...');
     const [categories] = await connection.execute('SELECT COUNT(*) as count FROM book_categories');
@@ -486,7 +540,6 @@ async function addBorrowTestData() {
 
     console.log(`\n🔍 数据准备完成：读者${readers.length}人，可借图书${books.length}本`);
 
-    // 4. 借阅记录：36条（覆盖3种状态，每条记录关联真实读者和图书）
     // 创建日期函数，生成与当前时间相符的测试数据
     const getDateString = (daysFromNow) => {
       const date = new Date();
@@ -497,53 +550,73 @@ async function addBorrowTestData() {
       return `${year}-${month}-${day}`;
     };
 
-    const borrowRecords = [
-      // 状态1：borrowed（在借，12条，最近12天借出，还未到期）
-      { reader_id: readers[0].reader_id, book_id: books[0].book_id, borrow_date: getDateString(-11), due_date: getDateString(20), return_date: null, status: 'borrowed' },
-      { reader_id: readers[1].reader_id, book_id: books[1].book_id, borrow_date: getDateString(-10), due_date: getDateString(21), return_date: null, status: 'borrowed' },
-      { reader_id: readers[2].reader_id, book_id: books[2].book_id, borrow_date: getDateString(-9), due_date: getDateString(22), return_date: null, status: 'borrowed' },
-      { reader_id: readers[3].reader_id, book_id: books[3].book_id, borrow_date: getDateString(-8), due_date: getDateString(23), return_date: null, status: 'borrowed' },
-      { reader_id: readers[4].reader_id, book_id: books[4].book_id, borrow_date: getDateString(-7), due_date: getDateString(24), return_date: null, status: 'borrowed' },
-      { reader_id: readers[5].reader_id, book_id: books[5].book_id, borrow_date: getDateString(-6), due_date: getDateString(25), return_date: null, status: 'borrowed' },
-      { reader_id: readers[6].reader_id, book_id: books[6].book_id, borrow_date: getDateString(-5), due_date: getDateString(26), return_date: null, status: 'borrowed' },
-      { reader_id: readers[7].reader_id, book_id: books[7].book_id, borrow_date: getDateString(-4), due_date: getDateString(27), return_date: null, status: 'borrowed' },
-      { reader_id: readers[8].reader_id, book_id: books[8].book_id, borrow_date: getDateString(-3), due_date: getDateString(28), return_date: null, status: 'borrowed' },
-      { reader_id: readers[9].reader_id, book_id: books[9].book_id, borrow_date: getDateString(-2), due_date: getDateString(29), return_date: null, status: 'borrowed' },
-      { reader_id: readers[10].reader_id, book_id: books[10].book_id, borrow_date: getDateString(-1), due_date: getDateString(30), return_date: null, status: 'borrowed' },
-      { reader_id: readers[11].reader_id, book_id: books[11].book_id, borrow_date: getDateString(0), due_date: getDateString(31), return_date: null, status: 'borrowed' },
+    // 生成更多测试数据
+    const borrowRecords = [];
+    
+    // 确保可借图书数量足够
+    const availableBooks = await pool.execute('SELECT book_id, title, available, category_id FROM books WHERE available > 0');
+    console.log(`\n🔍 数据验证：读者${readers.length}人，可借图书${availableBooks[0].length}本`);
+    
+    // 计算需要生成的记录数量
+    const borrowCount = Math.min(availableBooks[0].length, 18); // borrowed记录数量
+    const returnCount = 20; // returned记录数量
+    const overdueCount = 6; // overdue记录数量
+    
+    // 状态1：borrowed（在借，增加到18条，最近18天借出，还未到期）
+    for (let i = 0; i < borrowCount; i++) {
+      borrowRecords.push({
+        reader_id: readers[i % readers.length].reader_id,
+        book_id: availableBooks[0][i % availableBooks[0].length].book_id,
+        borrow_date: getDateString(-(17 - i)),
+        due_date: getDateString(15 + i),
+        return_date: null,
+        status: 'borrowed'
+      });
+    }
 
-      // 状态2：returned（已还，20条，历史记录）
-      { reader_id: readers[12].reader_id, book_id: books[12].book_id, borrow_date: getDateString(-60), due_date: getDateString(-30), return_date: getDateString(-40), status: 'returned' },
-      { reader_id: readers[13].reader_id, book_id: books[13].book_id, borrow_date: getDateString(-59), due_date: getDateString(-29), return_date: getDateString(-39), status: 'returned' },
-      { reader_id: readers[14].reader_id, book_id: books[14].book_id, borrow_date: getDateString(-58), due_date: getDateString(-28), return_date: getDateString(-38), status: 'returned' },
-      { reader_id: readers[15].reader_id, book_id: books[15].book_id, borrow_date: getDateString(-57), due_date: getDateString(-27), return_date: getDateString(-37), status: 'returned' },
-      { reader_id: readers[16].reader_id, book_id: books[16].book_id, borrow_date: getDateString(-56), due_date: getDateString(-26), return_date: getDateString(-36), status: 'returned' },
-      { reader_id: readers[17].reader_id, book_id: books[17].book_id, borrow_date: getDateString(-55), due_date: getDateString(-25), return_date: getDateString(-35), status: 'returned' },
-      { reader_id: readers[0].reader_id, book_id: books[18].book_id, borrow_date: getDateString(-54), due_date: getDateString(-24), return_date: getDateString(-34), status: 'returned' },
-      { reader_id: readers[1].reader_id, book_id: books[19].book_id, borrow_date: getDateString(-53), due_date: getDateString(-23), return_date: getDateString(-33), status: 'returned' },
-      { reader_id: readers[2].reader_id, book_id: books[20].book_id, borrow_date: getDateString(-52), due_date: getDateString(-22), return_date: getDateString(-32), status: 'returned' },
-      { reader_id: readers[3].reader_id, book_id: books[21].book_id, borrow_date: getDateString(-51), due_date: getDateString(-21), return_date: getDateString(-31), status: 'returned' },
-      { reader_id: readers[4].reader_id, book_id: books[22].book_id, borrow_date: getDateString(-50), due_date: getDateString(-20), return_date: getDateString(-30), status: 'returned' },
-      { reader_id: readers[5].reader_id, book_id: books[23].book_id, borrow_date: getDateString(-49), due_date: getDateString(-19), return_date: getDateString(-29), status: 'returned' },
-      { reader_id: readers[6].reader_id, book_id: books[24].book_id, borrow_date: getDateString(-48), due_date: getDateString(-18), return_date: getDateString(-28), status: 'returned' },
-      { reader_id: readers[7].reader_id, book_id: books[25].book_id, borrow_date: getDateString(-47), due_date: getDateString(-17), return_date: getDateString(-27), status: 'returned' },
-      { reader_id: readers[8].reader_id, book_id: books[26].book_id, borrow_date: getDateString(-46), due_date: getDateString(-16), return_date: getDateString(-26), status: 'returned' },
-      { reader_id: readers[9].reader_id, book_id: books[0].book_id, borrow_date: getDateString(-45), due_date: getDateString(-15), return_date: getDateString(-25), status: 'returned' },
-      { reader_id: readers[10].reader_id, book_id: books[0].book_id, borrow_date: getDateString(-44), due_date: getDateString(-14), return_date: getDateString(-24), status: 'returned' },
-      { reader_id: readers[11].reader_id, book_id: books[1].book_id, borrow_date: getDateString(-43), due_date: getDateString(-13), return_date: getDateString(-23), status: 'returned' },
-      { reader_id: readers[12].reader_id, book_id: books[2].book_id, borrow_date: getDateString(-42), due_date: getDateString(-12), return_date: getDateString(-22), status: 'returned' },
-      { reader_id: readers[13].reader_id, book_id: books[3].book_id, borrow_date: getDateString(-41), due_date: getDateString(-11), return_date: getDateString(-21), status: 'returned' },
+    // 状态2：returned（已还，增加到22条）
+    for (let i = 0; i < returnCount; i++) {
+      // 使用较早的借阅日期和归还日期
+      const borrowDaysAgo = 60 - (i % 20);
+      const returnDaysAgo = borrowDaysAgo - (10 + i % 5);
+      
+      borrowRecords.push({
+        reader_id: readers[(i + 10) % readers.length].reader_id,
+        book_id: availableBooks[0][(i + 5) % availableBooks[0].length].book_id,
+        borrow_date: getDateString(-borrowDaysAgo),
+        due_date: getDateString(-borrowDaysAgo + 30),
+        return_date: getDateString(-returnDaysAgo),
+        status: 'returned'
+      });
+    }
 
-      // 状态3：overdue（逾期，4条，已到期，显示不同的逾期天数）
-      { reader_id: readers[14].reader_id, book_id: books[4].book_id, borrow_date: getDateString(-40), due_date: getDateString(-10), return_date: null, status: 'overdue' },
-      { reader_id: readers[15].reader_id, book_id: books[5].book_id, borrow_date: getDateString(-35), due_date: getDateString(-8), return_date: null, status: 'overdue' },
-      { reader_id: readers[16].reader_id, book_id: books[6].book_id, borrow_date: getDateString(-30), due_date: getDateString(-5), return_date: null, status: 'overdue' },
-      { reader_id: readers[17].reader_id, book_id: books[7].book_id, borrow_date: getDateString(-25), due_date: getDateString(-3), return_date: null, status: 'overdue' }
-    ];
+    // 状态3：overdue（逾期，增加到6条）
+    for (let i = 0; i < overdueCount; i++) {
+      // 使用不同的逾期天数
+      const borrowDaysAgo = 40 - (i * 5);
+      
+      borrowRecords.push({
+        reader_id: readers[(i + 20) % readers.length].reader_id,
+        book_id: availableBooks[0][(i + 10) % availableBooks[0].length].book_id,
+        borrow_date: getDateString(-borrowDaysAgo),
+        due_date: getDateString(-borrowDaysAgo + 20 - (i % 3)),
+        return_date: null,
+        status: 'overdue'
+      });
+    }
 
     // 插入借阅记录
-    console.log(`📝 开始插入借阅记录（${borrowRecords.length}条）...`);
+    console.log(`\n📝 开始插入借阅记录（${borrowRecords.length}条）...`);
     for (const record of borrowRecords) {
+      // 确保reader_id和book_id有效
+      const [readerCheck] = await pool.execute('SELECT reader_id FROM readers WHERE reader_id = ?', [record.reader_id]);
+      const [bookCheck] = await pool.execute('SELECT book_id FROM books WHERE book_id = ?', [record.book_id]);
+      
+      if (readerCheck.length === 0 || bookCheck.length === 0) {
+        console.warn(`⚠️ 跳过无效记录 - 读者ID: ${record.reader_id}, 图书ID: ${record.book_id}`);
+        continue;
+      }
+      
       await pool.execute(
         'INSERT INTO borrows (reader_id, book_id, borrow_date, due_date, return_date, status) VALUES (?, ?, ?, ?, ?, ?)',
         [record.reader_id, record.book_id, record.borrow_date, record.due_date, record.return_date, record.status]
@@ -552,9 +625,20 @@ async function addBorrowTestData() {
 
     // 更新图书库存（仅“在借”和“逾期”状态减少可借数量）
     const borrowedBooks = borrowRecords.filter(r => ['borrowed', 'overdue'].includes(r.status));
-    console.log(`📦 更新图书库存（${borrowedBooks.length}本图书被借出）...`);
+    console.log(`\n📦 更新图书库存（${borrowedBooks.length}本图书被借出）...`);
     for (const record of borrowedBooks) {
-      await pool.execute('UPDATE books SET available = available - 1 WHERE book_id = ?', [record.book_id]);
+      // 确保book_id有效
+      const [book] = await pool.execute('SELECT available FROM books WHERE book_id = ?', [record.book_id]);
+      if (book.length === 0) {
+        console.warn(`⚠️ 无法更新库存 - 图书ID: ${record.book_id} 不存在`);
+        continue;
+      }
+      
+      if (book[0].available > 0) {
+        await pool.execute('UPDATE books SET available = available - 1 WHERE book_id = ?', [record.book_id]);
+      } else {
+        console.warn(`⚠️ 图书ID: ${record.book_id} 可借数量已为0，无法再借出`);
+      }
     }
 
     // 验证借阅数据
@@ -568,12 +652,14 @@ async function addBorrowTestData() {
     });
 
     // 验证库存更新
-    const [availableBooks] = await pool.execute('SELECT SUM(available) as total_available FROM books');
     const [totalStock] = await pool.execute('SELECT SUM(stock) as total_stock FROM books');
-    console.log(`\n📦 图书库存统计：`);
+    const [borrowedBooksCount] = await pool.execute('SELECT COUNT(*) as count FROM borrows WHERE status IN ("borrowed", "overdue")');
+    const [availableBooksCount] = await pool.execute('SELECT SUM(available) as total_available FROM books');
+    
+    console.log('\n📦 图书库存统计：');
     console.log(`   总库存: ${totalStock[0].total_stock} 本`);
-    console.log(`   可借数量: ${availableBooks[0].total_available} 本`);
-    console.log(`   已借出: ${totalStock[0].total_stock - availableBooks[0].total_available} 本`);
+    console.log(`   可借数量: ${availableBooksCount[0].total_available} 本`);
+    console.log(`   已借出: ${borrowedBooksCount[0].count} 本`);
 
   } catch (e) {
     console.error('❌ 添加借阅数据错误:', e.message);

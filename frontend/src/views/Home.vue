@@ -198,8 +198,20 @@ export default {
         this.totalBooks = booksResponse.data.total || booksResponse.data.list?.length || 0;
         // 计算在借图书数量和逾期数量
         const borrowedRecords = borrowsResponse.data.list || borrowsResponse.data || [];
-        this.borrowedBooks = borrowedRecords.filter(record => record.status === 'borrowed').length;
-        this.overdueBooks = borrowedRecords.filter(record => record.status === 'overdue').length;
+        // 修复：正确计算在借数和逾期数，使用后端计算的actual_status或is_overdue字段
+        // 在借数包括状态为borrowed的记录，以及状态为borrowed但已逾期的记录
+        this.borrowedBooks = borrowedRecords.filter(record => 
+          record.status === 'borrowed' || 
+          record.actual_status === 'borrowed' ||
+          (record.status === 'borrowed' && record.is_overdue === 1)
+        ).length;
+        // 逾期数包括状态为overdue的记录，以及状态为borrowed但已逾期的记录
+        this.overdueBooks = borrowedRecords.filter(record => 
+          record.status === 'overdue' || 
+          record.actual_status === 'overdue' || 
+          record.is_overdue === 1 ||
+          (record.status === 'borrowed' && record.is_overdue === 1)
+        ).length;
         
         // 修复可借数计算：从图书数据中累加每本书的available字段
         const bookList = booksResponse.data.list || [];

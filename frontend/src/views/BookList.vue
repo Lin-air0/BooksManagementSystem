@@ -46,9 +46,8 @@
           class="w-full px-3 py-2 border border-borderMedium rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
         >
           <option value="">全部状态</option>
-          <option value="available">可借阅</option>
-          <option value="borrowed">已借出</option>
-          <option value="maintenance">维护中</option>
+          <option value="0">可借阅</option>
+          <option value="all">已借出</option>
         </select>
       </div>
     </div>
@@ -214,6 +213,7 @@
                 详情
               </button>
               <button 
+                @click="confirmDeleteBook(book)"
                 class="text-danger hover:text-danger/80 transition-colors"
               >
                 删除
@@ -382,7 +382,119 @@
         </div>
       </div>
     </div>
-    
+    <!-- 添加图书弹窗 -->
+    <div v-if="isAddBookModalVisible" class="modal-overlay">
+        <div class="modal-content add-book-modal">
+          <div class="modal-header">
+            <h3>添加图书</h3>
+            <button @click="closeAddBookModal" class="close-button">&times;</button>
+          </div>
+          <div class="modal-body">
+            <form @submit.prevent="confirmAddBook">
+              <div class="form-group">
+                <label for="bookTitle">书名 *</label>
+                <input 
+                  type="text" 
+                  id="bookTitle" 
+                  v-model="newBook.title"
+                  class="form-control"
+                  required
+                  placeholder="请输入书名"
+                >
+              </div>
+              
+            <div class="form-group">
+              <label for="bookAuthor">作者 *</label>
+              <input 
+                type="text" 
+                id="bookAuthor" 
+                v-model="newBook.author"
+                class="form-control"
+                required
+                placeholder="请输入作者"
+              >
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label for="bookIsbn">ISBN</label>
+                <input 
+                  type="text" 
+                  id="bookIsbn" 
+                  v-model="newBook.isbn"
+                  class="form-control"
+                  placeholder="请输入ISBN号"
+                >
+              </div>
+              
+              <div class="form-group">
+                <label for="bookStock">库存数量 *</label>
+                <input 
+                  type="number" 
+                  id="bookStock" 
+                  v-model.number="newBook.stock"
+                  class="form-control"
+                  min="1"
+                  required
+                >
+              </div>
+            </div>
+          
+            <div class="form-group">
+              <label for="bookCategory">分类 *</label>
+              <select 
+                id="bookCategory" 
+                v-model="newBook.category_id"
+                class="form-control"
+                required
+              >
+                <option value="">请选择分类</option>
+                <option 
+                  v-for="category in batchCategories" 
+                  :key="category.category_id" 
+                  :value="category.category_id"
+                >
+                  {{ category.category_name }}
+                </option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="bookPublisher">出版社</label>
+              <input 
+                type="text" 
+                id="bookPublisher" 
+                v-model="newBook.publisher"
+                class="form-control"
+                placeholder="请输入出版社"
+              >
+            </div>
+            
+            <div class="form-group">
+              <label for="bookDescription">描述</label>
+              <textarea 
+                id="bookDescription" 
+                v-model="newBook.description"
+                class="form-control"
+                rows="3"
+                placeholder="请输入图书描述"
+              ></textarea>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button @click="closeAddBookModal" class="cancel-button">取消</button>
+          <button 
+            @click="confirmAddBook" 
+            class="confirm-button"
+            :disabled="isProcessingAdd"
+          >
+            {{ isProcessingAdd ? '添加中...' : '确认添加' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 图书详情弹窗 -->
     <div v-if="isDetailModalVisible" class="modal-overlay">
       <div class="modal-content detail-modal">
@@ -456,6 +568,34 @@
     </div>
     
     <!-- 移除还书相关弹窗 - 还书功能应在借阅记录页面处理 -->
+    
+    <!-- 单个图书删除确认弹窗 -->
+    <div v-if="showDeleteModal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>确认删除</h3>
+        </div>
+        <div class="modal-body">
+          <div class="warning-message">
+            <i class="warning-icon">⚠️</i>
+            <p>您确定要删除这本图书吗？</p>
+            <p class="danger-text">删除后无法恢复，请谨慎操作！</p>
+            <p><strong>书名：</strong>{{ bookToDelete?.title }}</p>
+            <p><strong>作者：</strong>{{ bookToDelete?.author }}</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button @click="closeDeleteModal" class="cancel-button">取消</button>
+          <button 
+            @click="deleteBook" 
+            class="danger-button"
+            :disabled="isProcessingDelete"
+          >
+            {{ isProcessingDelete ? '删除中...' : '确认删除' }}
+          </button>
+        </div>
+      </div>
+    </div>
     
     <!-- 批量删除确认弹窗 -->
     <div v-if="showBatchDeleteModal" class="modal-overlay">
@@ -730,7 +870,7 @@ export default {
       // 第3阶段新增：导出相关状态
       isProcessingExport: false,        // 导出处理状态
       // 添加图书相关状态
-      showAddBookModal: false,          // 添加图书弹窗显示状态
+      isAddBookModalVisible: false,          // 添加图书弹窗显示状态
       isProcessingAdd: false,           // 添加图书处理状态
       newBook: {                        // 新图书信息
         title: '',
@@ -741,6 +881,10 @@ export default {
         stock: 1,
         description: ''
       },
+      // 删除图书相关状态
+      showDeleteModal: false,           // 删除确认弹窗显示状态
+      isProcessingDelete: false,        // 删除处理状态
+      bookToDelete: null               // 待删除的图书信息
       // 移除还书相关状态 - 还书功能应在借阅记录页面处理
     };
   },
@@ -914,10 +1058,26 @@ export default {
         if (params.category) params.category = params.category;
         if (params.isbn) params.isbn = params.isbn.trim();
         if (params.publishYear) params.publish_year = params.publishYear;
-        if (params.stock && !isNaN(params.stock)) {
-          params.stock = Number(params.stock);
-        } else {
-          delete params.stock;
+        
+        // 修复图书状态筛选逻辑
+        let isBorrowedFilter = false;
+        if (params.stock) {
+          if (params.stock === '0') {
+            // 可借阅：available > 0
+            params.stock = 0;
+          } else if (params.stock === 'all') {
+            // 已借出：available = 0
+            isBorrowedFilter = true;
+            delete params.stock;
+          } else {
+            // 其他数值情况
+            const stockValue = parseInt(params.stock);
+            if (!isNaN(stockValue)) {
+              params.stock = stockValue;
+            } else {
+              delete params.stock;
+            }
+          }
         }
 
         console.log('获取图书列表，参数:', params);
@@ -930,7 +1090,13 @@ export default {
         
         if (isSuccess) {
           // 标准化字段映射 - 将后端字段映射到前端需要的格式
-          const bookList = response.data.list || response.data.books || [];
+          let bookList = response.data.list || response.data.books || [];
+          
+          // 如果需要筛选已借出的图书，则在前端进行过滤
+          if (isBorrowedFilter) {
+            bookList = bookList.filter(book => book.available === 0);
+          }
+          
           this.filteredBooks = bookList.map(book => ({
             id: book.book_id,           // 后端book_id -> 前端id
             book_id: book.book_id,      // 保持原字段用于表格显示
@@ -1433,53 +1599,24 @@ export default {
      * 加载分类列表
      */
     async loadCategories() {
-      if (this.batchCategories.length > 0) {
-        return; // 已经加载过
-      }
-      
+      // 不再检查batchCategories是否已加载，确保每次都能获取最新数据
       this.isLoadingCategories = true;
       
       try {
-        // 使用统计API获取分类信息，然后转换为所需格式
+        // 使用统计API获取分类信息
         const response = await statisticsAPI.getCategoriesStats();
         
         if (response.success && response.data) {
-          // 将统计数据转换为分类选项格式
-          // 由于统计API不返回category_id，我们需要从现有图书数据中提取分类信息
-          const categorySet = new Set();
-          const categoryMap = new Map();
-          
-          // 从当前图书列表中提取分类信息
-          this.filteredBooks.forEach(book => {
-            if (book.category_name && book.category_id) {
-              categoryMap.set(book.category_name, book.category_id);
-            }
-          });
-          
-          // 结合统计数据和现有分类信息
-          this.batchCategories = response.data
-            .filter(item => categoryMap.has(item.category_name))
-            .map(item => ({
-              category_id: categoryMap.get(item.category_name),
-              category_name: item.category_name
-            }));
-          
-          // 如果从图书数据中获取的分类不足，添加一些默认分类
-          if (this.batchCategories.length === 0) {
-            this.batchCategories = [
-              { category_id: 1, category_name: '计算机' },
-              { category_id: 2, category_name: '文学小说' },
-              { category_id: 3, category_name: '历史' },
-              { category_id: 4, category_name: '科学' },
-              { category_id: 5, category_name: '哲学' },
-              { category_id: 6, category_name: '艺术' }
-            ];
-          }
+          // 从统计API获取分类信息，包含category_id和category_name
+          this.batchCategories = response.data.map(item => ({
+            category_id: item.category_id,
+            category_name: item.category_name
+          }));
           
           console.log('加载分类列表成功:', this.batchCategories.length, this.batchCategories);
         } else {
           console.warn('加载分类失败:', response);
-          // 使用默认分类列表
+          // 使用默认分类列表作为后备
           this.batchCategories = [
             { category_id: 1, category_name: '计算机' },
             { category_id: 2, category_name: '文学小说' },
@@ -1491,7 +1628,7 @@ export default {
         }
       } catch (error) {
         console.error('加载分类失败:', error);
-        // 使用默认分类列表
+        // 使用默认分类列表作为后备
         this.batchCategories = [
           { category_id: 1, category_name: '计算机' },
           { category_id: 2, category_name: '文学小说' },
@@ -1522,14 +1659,61 @@ export default {
         stock: 1,
         description: ''
       };
-      this.showAddBookModal = true;
+      this.isAddBookModalVisible = true;
     },
     
     /**
      * 关闭添加图书弹窗
      */
     closeAddBookModal() {
-      this.showAddBookModal = false;
+      this.isAddBookModalVisible = false;
+    },
+    
+    /**
+     * 确认删除图书
+     */
+    confirmDeleteBook(book) {
+      this.bookToDelete = book;
+      this.showDeleteModal = true;
+    },
+    
+    /**
+     * 关闭删除确认弹窗
+     */
+    closeDeleteModal() {
+      this.showDeleteModal = false;
+      this.bookToDelete = null;
+    },
+    
+    /**
+     * 删除图书
+     */
+    async deleteBook() {
+      if (!this.bookToDelete) {
+        alert('未选择要删除的图书');
+        return;
+      }
+      
+      this.isProcessingDelete = true;
+      
+      try {
+        // 调用API删除图书
+        const response = await bookAPI.deleteBook(this.bookToDelete.book_id);
+        
+        if (response.code === 200) {
+          alert('图书删除成功！');
+          this.closeDeleteModal();
+          // 刷新图书列表
+          await this.fetchBooks();
+        } else {
+          alert('删除失败: ' + (response.msg || '未知错误'));
+        }
+      } catch (error) {
+        console.error('删除图书失败:', error);
+        alert('删除图书失败: ' + (error.message || '网络错误'));
+      } finally {
+        this.isProcessingDelete = false;
+      }
     },
     
     /**
@@ -2557,6 +2741,21 @@ export default {
   cursor: not-allowed;
 }
 
+/* 添加图书弹窗样式 */
+.add-book-modal {
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+@media (max-width: 768px) {
+  .add-book-modal {
+    max-width: 95%;
+    width: 95%;
+  }
+}
+
 /* 简化：使用Tailwind CSS替代自定义分页样式 */
 
 /* 响应式设计 */
@@ -2714,115 +2913,3 @@ export default {
 }
 </style>
 
-<!-- 添加图书弹窗 -->
-<div v-if="showAddBookModal" class="modal-overlay">
-  <div class="modal-content" style="max-width: 600px;">
-    <div class="modal-header">
-      <h3>添加图书</h3>
-      <button @click="closeAddBookModal" class="close-button">&times;</button>
-    </div>
-    <div class="modal-body">
-      <form @submit.prevent="confirmAddBook">
-        <div class="form-group">
-          <label for="bookTitle">书名 *</label>
-          <input 
-            type="text" 
-            id="bookTitle" 
-            v-model="newBook.title"
-            class="form-control"
-            required
-            placeholder="请输入书名"
-          >
-        </div>
-        
-        <div class="form-group">
-          <label for="bookAuthor">作者 *</label>
-          <input 
-            type="text" 
-            id="bookAuthor" 
-            v-model="newBook.author"
-            class="form-control"
-            required
-            placeholder="请输入作者"
-          >
-        </div>
-        
-        <div class="form-row">
-          <div class="form-group">
-            <label for="bookIsbn">ISBN</label>
-            <input 
-              type="text" 
-              id="bookIsbn" 
-              v-model="newBook.isbn"
-              class="form-control"
-              placeholder="请输入ISBN号"
-            >
-          </div>
-          
-          <div class="form-group">
-            <label for="bookStock">库存数量 *</label>
-            <input 
-              type="number" 
-              id="bookStock" 
-              v-model.number="newBook.stock"
-              class="form-control"
-              min="1"
-              required
-            >
-          </div>
-        </div>
-        
-        <div class="form-group">
-          <label for="bookCategory">分类 *</label>
-          <select 
-            id="bookCategory" 
-            v-model="newBook.category_id"
-            class="form-control"
-            required
-          >
-            <option value="">请选择分类</option>
-            <option 
-              v-for="category in batchCategories" 
-              :key="category.category_id" 
-              :value="category.category_id"
-            >
-              {{ category.category_name }}
-            </option>
-          </select>
-        </div>
-        
-        <div class="form-group">
-          <label for="bookPublisher">出版社</label>
-          <input 
-            type="text" 
-            id="bookPublisher" 
-            v-model="newBook.publisher"
-            class="form-control"
-            placeholder="请输入出版社"
-          >
-        </div>
-        
-        <div class="form-group">
-          <label for="bookDescription">描述</label>
-          <textarea 
-            id="bookDescription" 
-            v-model="newBook.description"
-            class="form-control"
-            rows="3"
-            placeholder="请输入图书描述"
-          ></textarea>
-        </div>
-      </form>
-    </div>
-    <div class="modal-footer">
-      <button @click="closeAddBookModal" class="cancel-button">取消</button>
-      <button 
-        @click="confirmAddBook" 
-        class="confirm-button"
-        :disabled="isProcessingAdd"
-      >
-        {{ isProcessingAdd ? '添加中...' : '确认添加' }}
-      </button>
-    </div>
-  </div>
-</div>
